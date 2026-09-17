@@ -1,0 +1,205 @@
+{
+ "key": "3054",
+ "image": "3054.jpg",
+ "rel": "3054.jpg",
+ "path": "/home/wpie/ArmorDataset/RawPic/SUM/3054.jpg",
+ "size": [
+  480,
+  640
+ ],
+ "teachers": [
+  "rp_0526_fp32",
+  "shtech/SZU0526_fp32"
+ ],
+ "config": {
+  "expand": 1.5,
+  "min_roi_side": 8,
+  "conf": 0.25,
+  "max_det": 20,
+  "min_refine_plate_w": 24.0,
+  "refine_thresholds_base": [
+   80,
+   100,
+   120,
+   140,
+   160,
+   180,
+   200
+  ],
+  "refine_thresholds_extra": [
+   20,
+   40,
+   60,
+   220,
+   240
+  ],
+  "agree_iou": 0.85,
+  "agree_kpt_pct": 0.05,
+  "consensus": "mean",
+  "teachers": [
+   "rp_0526_fp32",
+   "shtech/SZU0526_fp32"
+  ]
+ },
+ "class_mode": "single",
+ "kpt_order": [
+  "LT",
+  "LB",
+  "RB",
+  "RT"
+ ],
+ "n_obj": 1,
+ "n_review": 1,
+ "objects": [
+  {
+   "flags": [
+    "agree",
+    "refine_failed",
+    "no_bar_pair"
+   ],
+   "color": 0,
+   "num": 3,
+   "color_name": "B",
+   "num_name": "3",
+   "pcolor": 0.9997915625572205,
+   "pnum": 0.9940534234046936,
+   "score_primary": 0.9389,
+   "score_secondary": 0.9391,
+   "plate_w": 69.95,
+   "bar_len": 17.86,
+   "primary": {
+    "model": "rp_0526_fp32",
+    "score": 0.9389,
+    "color": 0,
+    "color_name": "B",
+    "num": 3,
+    "num_name": "3",
+    "pcolor": 0.9998,
+    "pnum": 0.9941,
+    "quad": [
+     [
+      354.23,
+      137.62
+     ],
+     [
+      354.42,
+      155.85
+     ],
+     [
+      424.45,
+      153.33
+     ],
+     [
+      424.07,
+      135.87
+     ]
+    ],
+    "box": [
+     354.23,
+     135.87,
+     424.45,
+     155.85
+    ]
+   },
+   "secondary": {
+    "model": "shtech/SZU0526_fp32",
+    "score": 0.9391,
+    "color": 0,
+    "color_name": "B",
+    "num": 3,
+    "num_name": "3",
+    "pcolor": 0.9998,
+    "pnum": 0.9941,
+    "quad": [
+     [
+      354.24,
+      137.6
+     ],
+     [
+      354.45,
+      155.85
+     ],
+     [
+      424.46,
+      153.33
+     ],
+     [
+      424.04,
+      135.85
+     ]
+    ],
+    "box": [
+     354.24,
+     135.85,
+     424.46,
+     155.85
+    ]
+   },
+   "source": "teacher",
+   "reason": "no_bar_pair",
+   "refine": {
+    "expand": 1.5,
+    "roi": [
+     336,
+     130,
+     443,
+     161
+    ],
+    "roi_wh_px": [
+     107,
+     31
+    ],
+    "plate_w_coarse": 69.95,
+    "accepted": false,
+    "reason": "无满足距离/几何门限的灯条对",
+    "accept": 17.5,
+    "stage": "base+extra"
+   },
+   "quad_final_px": [
+    [
+     354.23,
+     137.61
+    ],
+    [
+     354.44,
+     155.85
+    ],
+    [
+     424.45,
+     153.33
+    ],
+    [
+     424.06,
+     135.86
+    ]
+   ],
+   "quad_coarse_px": [
+    [
+     354.23,
+     137.61
+    ],
+    [
+     354.44,
+     155.85
+    ],
+    [
+     424.45,
+     153.33
+    ],
+    [
+     424.06,
+     135.86
+    ]
+   ],
+   "norm_size": [
+    640.0,
+    480.0
+   ],
+   "review": true,
+   "iou_two_teachers": 0.9985,
+   "kpt_diff_px": 0.025,
+   "kpt_diff_pct": 0.04,
+   "d_secondary_px": 0.025
+  }
+ ]
+}

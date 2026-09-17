@@ -1,0 +1,127 @@
+{
+ "config": {
+  "expand": 1.5,
+  "agree_iou": 0.85,
+  "agree_kpt_pct": 0.05,
+  "min_refine_plate_w": 24.0,
+  "class_mode": "single",
+  "teachers": [
+   "rp_0526_fp32",
+   "shtech/SZU0526_fp32"
+  ]
+ },
+ "images": {
+  "total": 21067,
+  "no_detection": 6827,
+  "with_labels": 14240
+ },
+ "objects": {
+  "total": 22045,
+  "review": 4306,
+  "review_rate": 0.1953,
+  "per_image": 1.046
+ },
+ "source": {
+  "refine": 14028,
+  "teacher": 8017
+ },
+ "refine_accept_rate": 0.6363,
+ "consistency": {
+  "agree": 21156,
+  "conflict": 718,
+  "primary_only": 81,
+  "secondary_only": 89,
+  "agree_rate_over_paired": 0.9672,
+  "both_teachers_present": 21874
+ },
+ "flags": {
+  "agree": 21156,
+  "refine_ok": 14028,
+  "refine_skipped": 4679,
+  "plate_too_small": 4679,
+  "tiny": 595,
+  "refine_failed": 3337,
+  "no_bar_pair": 3338,
+  "no_match": 170,
+  "primary_only": 81,
+  "conflict": 718,
+  "conflict_cls": 308,
+  "conflict_iou": 443,
+  "conflict_kpt": 315,
+  "secondary_only": 89,
+  "reviewed": 1
+ },
+ "reasons": {
+  "plate_too_small": 4679,
+  "no_bar_pair": 3337
+ },
+ "color_dist": {
+  "B": 11218,
+  "R": 9725,
+  "P": 1083,
+  "N": 19
+ },
+ "num_dist": {
+  "3": 5520,
+  "4": 6403,
+  "B": 2216,
+  "2": 4334,
+  "7": 1570,
+  "O": 2002
+ },
+ "plate_w_px": {
+  "p50": 43.91,
+  "p90": 152.326,
+  "p99": 753.192,
+  "mean": 79.579,
+  "min": 5.41,
+  "max": 2666.04
+ },
+ "refine_shift_px": {
+  "p50": 1.47,
+  "p90": 3.71,
+  "p99": 22.909,
+  "mean": 2.426,
+  "min": 0.22,
+  "max": 61.66
+ },
+ "refine_shift_pct_plate": {
+  "p50": 2.33,
+  "p90": 5.63,
+  "p99": 10.777,
+  "mean": 2.961,
+  "min": 0.29,
+  "max": 15.37
+ },
+ "secondary_vs_primary_px": {
+  "p50": 0.036,
+  "p90": 0.618,
+  "p99": 3.036,
+  "mean": 0.215,
+  "min": 0.0,
+  "max": 24.618
+ },
+ "kpt_diff_pct_plate": {
+  "p50": 0.08,
+  "p90": 0.816,
+  "p99": 6.815,
+  "mean": 0.398,
+  "min": 0.0,
+  "max": 29.17
+ },
+ "timing": {
+  "records": 21067,
+  "status": {
+   "ok": 21067
+  },
+  "ms_per_image": {
+   "p50": 27.8,
+   "p90": 51.74,
+   "p99": 194.7,
+   "mean": 39.12,
+   "min": 13.7,
+   "max": 764.2
+  },
+  "total_minutes": 13.74
+ }
+}

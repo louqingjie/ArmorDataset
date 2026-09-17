@@ -1,0 +1,363 @@
+{
+ "key": "哨兵204",
+ "image": "哨兵204.jpg",
+ "rel": "哨兵204.jpg",
+ "path": "/home/wpie/ArmorDataset/RawPic/SUM/哨兵204.jpg",
+ "size": [
+  720,
+  1280
+ ],
+ "teachers": [
+  "rp_0526_fp32",
+  "shtech/SZU0526_fp32"
+ ],
+ "config": {
+  "expand": 1.5,
+  "min_roi_side": 8,
+  "conf": 0.25,
+  "max_det": 20,
+  "min_refine_plate_w": 24.0,
+  "refine_thresholds_base": [
+   80,
+   100,
+   120,
+   140,
+   160,
+   180,
+   200
+  ],
+  "refine_thresholds_extra": [
+   20,
+   40,
+   60,
+   220,
+   240
+  ],
+  "agree_iou": 0.85,
+  "agree_kpt_pct": 0.05,
+  "consensus": "mean",
+  "teachers": [
+   "rp_0526_fp32",
+   "shtech/SZU0526_fp32"
+  ]
+ },
+ "class_mode": "single",
+ "kpt_order": [
+  "LT",
+  "LB",
+  "RB",
+  "RT"
+ ],
+ "n_obj": 2,
+ "n_review": 1,
+ "objects": [
+  {
+   "flags": [
+    "agree",
+    "refine_failed",
+    "no_bar_pair"
+   ],
+   "color": 0,
+   "num": 3,
+   "color_name": "B",
+   "num_name": "3",
+   "pcolor": 0.9996854066848755,
+   "pnum": 0.9987531900405884,
+   "score_primary": 0.9179,
+   "score_secondary": 0.9175,
+   "plate_w": 43.9,
+   "bar_len": 34.22,
+   "primary": {
+    "model": "rp_0526_fp32",
+    "score": 0.9179,
+    "color": 0,
+    "color_name": "B",
+    "num": 3,
+    "num_name": "3",
+    "pcolor": 0.9997,
+    "pnum": 0.9988,
+    "quad": [
+     [
+      379.91,
+      303.99
+     ],
+     [
+      374.31,
+      336.84
+     ],
+     [
+      417.68,
+      344.89
+     ],
+     [
+      423.15,
+      310.23
+     ]
+    ],
+    "box": [
+     374.31,
+     303.99,
+     423.15,
+     344.89
+    ]
+   },
+   "secondary": {
+    "model": "shtech/SZU0526_fp32",
+    "score": 0.9175,
+    "color": 0,
+    "color_name": "B",
+    "num": 3,
+    "num_name": "3",
+    "pcolor": 0.9997,
+    "pnum": 0.9988,
+    "quad": [
+     [
+      379.9,
+      303.98
+     ],
+     [
+      374.31,
+      336.83
+     ],
+     [
+      417.68,
+      344.94
+     ],
+     [
+      423.14,
+      310.24
+     ]
+    ],
+    "box": [
+     374.31,
+     303.98,
+     423.14,
+     344.94
+    ]
+   },
+   "source": "teacher",
+   "reason": "no_bar_pair",
+   "refine": {
+    "expand": 1.5,
+    "roi": [
+     362,
+     293,
+     436,
+     356
+    ],
+    "roi_wh_px": [
+     74,
+     63
+    ],
+    "plate_w_coarse": 43.9,
+    "accepted": false,
+    "reason": "无满足距离/几何门限的灯条对",
+    "accept": 15.0,
+    "stage": "base+extra"
+   },
+   "quad_final_px": [
+    [
+     379.91,
+     303.98
+    ],
+    [
+     374.31,
+     336.83
+    ],
+    [
+     417.68,
+     344.91
+    ],
+    [
+     423.14,
+     310.23
+    ]
+   ],
+   "quad_coarse_px": [
+    [
+     379.91,
+     303.98
+    ],
+    [
+     374.31,
+     336.83
+    ],
+    [
+     417.68,
+     344.91
+    ],
+    [
+     423.14,
+     310.23
+    ]
+   ],
+   "norm_size": [
+    1280.0,
+    720.0
+   ],
+   "review": true,
+   "iou_two_teachers": 0.999,
+   "kpt_diff_px": 0.023,
+   "kpt_diff_pct": 0.05,
+   "d_secondary_px": 0.023
+  },
+  {
+   "flags": [
+    "agree",
+    "refine_ok"
+   ],
+   "color": 0,
+   "num": 0,
+   "color_name": "B",
+   "num_name": "7",
+   "pcolor": 0.9990977048873901,
+   "pnum": 0.9983705878257751,
+   "score_primary": 0.9089,
+   "score_secondary": 0.9095,
+   "plate_w": 77.89,
+   "bar_len": 38.15,
+   "primary": {
+    "model": "rp_0526_fp32",
+    "score": 0.9089,
+    "color": 0,
+    "color_name": "B",
+    "num": 0,
+    "num_name": "7",
+    "pcolor": 0.9991,
+    "pnum": 0.9984,
+    "quad": [
+     [
+      563.13,
+      315.55
+     ],
+     [
+      572.48,
+      353.36
+     ],
+     [
+      649.61,
+      342.49
+     ],
+     [
+      640.48,
+      306.24
+     ]
+    ],
+    "box": [
+     563.13,
+     306.24,
+     649.61,
+     353.36
+    ]
+   },
+   "secondary": {
+    "model": "shtech/SZU0526_fp32",
+    "score": 0.9095,
+    "color": 0,
+    "color_name": "B",
+    "num": 0,
+    "num_name": "7",
+    "pcolor": 0.9991,
+    "pnum": 0.9983,
+    "quad": [
+     [
+      563.16,
+      315.53
+     ],
+     [
+      572.45,
+      353.35
+     ],
+     [
+      649.6,
+      342.48
+     ],
+     [
+      640.47,
+      306.28
+     ]
+    ],
+    "box": [
+     563.16,
+     306.28,
+     649.6,
+     353.35
+    ]
+   },
+   "source": "refine",
+   "reason": null,
+   "refine": {
+    "expand": 1.5,
+    "roi": [
+     541,
+     294,
+     672,
+     366
+    ],
+    "roi_wh_px": [
+     131,
+     72
+    ],
+    "plate_w_coarse": 77.89,
+    "accepted": true,
+    "thr": 220,
+    "dist": 6.84,
+    "accept": 19.5,
+    "armor_ratio": 2.11,
+    "side_ratio": 1.11,
+    "armor_ok": false,
+    "stage": "extra",
+    "iou_vs_coarse": 0.913,
+    "plate_w_refine": 80.4,
+    "plate_w_ratio": 1.032,
+    "d_coarse_to_refine_px": 1.71,
+    "d_coarse_to_refine_pct": 2.2
+   },
+   "quad_final_px": [
+    [
+     562.18,
+     316.21
+    ],
+    [
+     571.41,
+     353.15
+    ],
+    [
+     651.7,
+     339.1
+    ],
+    [
+     640.9,
+     306.7
+    ]
+   ],
+   "quad_coarse_px": [
+    [
+     563.15,
+     315.54
+    ],
+    [
+     572.47,
+     353.36
+    ],
+    [
+     649.61,
+     342.49
+    ],
+    [
+     640.48,
+     306.26
+    ]
+   ],
+   "norm_size": [
+    1280.0,
+    720.0
+   ],
+   "review": false,
+   "iou_two_teachers": 0.9989,
+   "kpt_diff_px": 0.03,
+   "kpt_diff_pct": 0.04,
+   "d_secondary_px": 0.03
+  }
+ ]
+}

@@ -1,0 +1,498 @@
+% !TEX program = xelatex
+% =====================================================================
+%  装甲板检测权重推理与评估实验报告（纯 LaTeX 排版，所有表格与图表均由 LaTeX 绘制）
+%  编译:  latexmk -xelatex 实验报告.tex      （或 xelatex 连续编译两次）
+%  依赖:  ctex, geometry, graphicx, booktabs, longtable, array, multirow,
+%         makecell, caption, xcolor, tikz, pgfplots, siunitx, hyperref
+%  说明:  文中的照片来自原始数据目录 ../BaseLine/，叠加的四边形/角点由 TikZ 绘制；
+%         各项指标数据全部以 LaTeX 表格或 pgfplots 内联数据给出，无外部图表文件。
+% =====================================================================
+\documentclass[11pt,a4paper]{ctexart}
+
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{siunitx}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.16}
+\usepgfplotslibrary{groupplots}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds,shapes.geometric}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\captionsetup{font=small,labelfont=bf}
+\sisetup{detect-all}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\good}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\bad}[1]{\textcolor{red!65!black}{#1}}
+
+% ---------- 基准关键点面板：原图 + TikZ 叠加基准四边形 ----------
+% 用法: \begin{kptpanel}{文件}{图宽px}{图高px}{裁剪x0}{裁剪y0}{裁剪x1}{裁剪y1}
+%         \kptquad{x0}{y0}{x1}{y1}{x2}{y2}{x3}{y3}
+%       \end{kptpanel}
+\newenvironment{kptpanel}[7]{%
+  \pgfmathsetmacro{\kpw}{3.55}%
+  \pgfmathsetmacro{\kps}{\kpw/(#6-#4)}%
+  \pgfmathsetmacro{\kph}{\kps*(#7-#5)}%
+  \pgfmathsetmacro{\kiw}{\kps*#2}%
+  \pgfmathsetmacro{\kih}{\kps*#3}%
+  \pgfmathsetmacro{\kix}{-#4*\kps}%
+  \pgfmathsetmacro{\kiy}{\kph+#5*\kps}%
+  \def\kpcx{#4}\def\kpcy{#5}%
+  \begin{tikzpicture}[x=1cm,y=1cm]
+    \clip (0,0) rectangle (\kpw,\kph);
+    \node[anchor=north west,inner sep=0pt,outer sep=0pt] at ({\kix},{\kiy})
+      {\includegraphics[width=\kiw cm,height=\kih cm]{#1}};%
+}{%
+    \draw[gray!60,line width=0.3pt] (0,0) rectangle (\kpw,\kph);
+  \end{tikzpicture}}
+
+% 基准四点（左上, 左下, 右下, 右上）
+\newcommand{\kptquad}[8]{%
+  \draw[green!55!black,line width=0.7pt]
+    ({((#1)-(\kpcx))*\kps},{\kph-((#2)-(\kpcy))*\kps})
+    -- ({((#3)-(\kpcx))*\kps},{\kph-((#4)-(\kpcy))*\kps})
+    -- ({((#5)-(\kpcx))*\kps},{\kph-((#6)-(\kpcy))*\kps})
+    -- ({((#7)-(\kpcx))*\kps},{\kph-((#8)-(\kpcy))*\kps}) -- cycle;
+  \kptdot{#1}{#2}{0}\kptdot{#3}{#4}{1}\kptdot{#5}{#6}{2}\kptdot{#7}{#8}{3}%
+}
+\newcommand{\kptdot}[3]{%
+  \pgfmathsetmacro{\kdx}{((#1)-(\kpcx))*\kps}%
+  \pgfmathsetmacro{\kdy}{\kph-((#2)-(\kpcy))*\kps}%
+  \fill[red!80!black] (\kdx,\kdy) circle (1.6pt);%
+  \node[red!80!black,font=\tiny,inner sep=0.6pt] at ({\kdx+0.1},{\kdy+0.1}) {#3};%
+}
+
+\title{\bfseries 装甲板检测权重推理与评估实验报告}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent 本报告对 \code{Weights/} 目录下的 20 个 ONNX 权重（18 个检测类模型 + 2 个数字分类模型）
+在 \code{BaseLine/} 的 11 张测试图上完成推理与评估。工作包括：逐模型解析自定义导出的输出布局、
+统一可视化、按评测口径生成评判 ROI、并采用传统视觉角点精修方案生成基准关键点，
+最后给出各模型的检出情况与角点精度指标。本报告的全部表格与图表均由 LaTeX 直接绘制
+（表：booktabs/longtable，图：TikZ/pgfplots，叠加图使用 \code{BaseLine/} 原始照片 + TikZ 坐标绘制）；
+逐格可视化对比图与原始数据（PNG/JPG/CSV/JSON）保留在 \code{Test/} 目录作为补充材料。
+\end{abstract}
+
+\tableofcontents
+\vspace{0.5em}
+
+% =====================================================================
+\section{模型识别（推理/解码）中遇到的问题}
+% =====================================================================
+18 个检测权重来自不同团队、不同导出管线，ONNX 图内多无可用语义信息，解码过程遇到的主要问题与解决方式如下。
+
+\begin{longtable}{@{}p{0.6cm} p{4.6cm} p{5.6cm} p{4.2cm}@{}}
+\caption{模型识别（推理/解码）问题与解决方式}\label{tab:problem}\\
+\toprule
+\# & 问题 & 现象 & 解决方式\\
+\midrule
+\endfirsthead
+\toprule
+\# & 问题 & 现象 & 解决方式\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+1 & 自定义导出、无可用元数据 &
+\code{szu2026\_infantry\_*.onnx} 的 metadata 标注 \code{task=pose}、36 类、\code{kpt\_shape=[4,2]}，
+而实际输出仅 21 通道、9 类 & 不依赖 metadata，逐模型从计算图常量反推通道布局 \\
+\hline
+2 & 输出通道布局不统一 &
+同为检测模型：有 \code{[N,22]}（kpt8+conf1+color4+num9）、有 \code{[N,21]}（color4+armor9+kpt8），
+还有通道在前的 \code{[C,N]} & 读取图中 \code{Slice}/\code{Split} 的起止常量与算子命名确定顺序 \\
+\hline
+3 & 通道含义藏在图内命名常量中 &
+变体 \code{rp\_0526\_norm/split} 的尾部节点名为 \code{kpt\_normed}、\code{conf\_sig}、
+\code{color\_sig}、\code{num\_sig}，并有切片常量给出通道分段 \code{[0:8]}/\code{[8:9]}/\code{[9:13]}/\code{[13:22]} &
+直接采用该布局作为全族契约，并以实测交叉验证 \\
+\hline
+4 & 同族变体数值域不同 &
+\code{rp\_0526\_fp32} 输出原始 logits + 像素坐标；\code{rp\_0526\_norm} 已 $\times 1/640$ 且过 sigmoid；
+\code{rp\_0526\_split} 拆成 3 个输出 & 为每个变体设置独立解码分支（raw / norm / split） \\
+\hline
+5 & 变体间 kpt 数值域不同 &
+\code{rp\_0526\_split} 的 \code{output\_kpt} 已被 \code{kpt\_normed} 除以 640（归一化到 $0\sim1$）&
+该分支解码时 $\times 640$ 还原，四点与 \code{rp\_0526\_fp32} 逐点一致 \\
+\hline
+6 & 蒸馏模型几何量为网格相对量 &
+\code{shtech/SKD250526} 的 kpt 输出为 $\pm 2$ 量级的网格相对量，不是像素坐标 &
+依图内 anchor 常量与实测标定：\code{kpt = 网格中心 + raw} $\times$ \code{(2*stride)} \\
+\hline
+7 & 类别索引语义未知 &
+编号类只有索引；不同族顺序不同（\code{rp} 族 \code{0}$\to$7 号、\code{7}$\to$基地；\code{SKD} 族 \code{0}$\to$基地、\code{7}$\to$7 号）&
+用 \code{RawPic} 中带语义文件名的图片（\code{outpost*}、\code{*base*}、\code{哨兵*}）反标定 \\
+\hline
+8 & 输入预处理无提示 &
+图内首个算子直接消费 \code{images}，不含 Sub/Div 归一化节点 & 实测标定：输入按 $/255$ 归一化到 $0\sim1$ \\
+\hline
+9 & fp16 输入模型 & \code{rp\_0526.onnx} 输入为 \code{tensor(float16)} & 送入前 \code{astype(np.float16)} \\
+\hline
+10 & 无法加载的权重 & \code{Weights/sp\_vision\_25/yolov5.bin}（2.8\,MB）为裸二进制、无格式说明 &
+不纳入表格，报告中说明 \\
+\hline
+11 & 仅分类模型无检测框 & \code{tiny\_resnet}、\code{sp25\_tiny\_resnet\_b1} 输入 \code{[1,1,32,32]}、输出 9 类，无位置信息 &
+按检测评估口径不纳入模型列表与图表 \\
+
+\end{longtable}
+
+% =====================================================================
+\section{各模型输入/输出情况}
+% =====================================================================
+{\footnotesize\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}p{4.2cm} p{2.2cm} p{2.0cm} p{3.6cm} p{3.9cm}@{}}
+\caption{各权重输入/输出与解码要点}\\
+\toprule
+模型 & 输入 & 输出 & 输出布局 & 预处理/解码要点 \\
+\midrule
+\endfirsthead
+\toprule
+模型 & 输入 & 输出 & 输出布局 & 预处理/解码要点 \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\code{rp\_0526} (fp16) & $1\times3\times640\times640$ fp16 & \code{[1,25200,22]} &
+kpt(8)+conf(1)+color(4)+num(9) & $/255$ 后转 fp16；conf/color/num 需 sigmoid，kpt 为输入像素坐标 \\
+\code{rp\_0526\_fp32} & $1\times3\times640\times640$ fp32 & \code{[1,25200,22]} & 同上 & 同上（fp32）\\
+\code{rp\_0526\_norm} & 同上 & \code{[1,25200,22]} & 同上 & kpt 已 $\times1/640$（解码 $\times640$），其余已 sigmoid \\
+\code{rp\_0526\_split} & 同上 & 3 个输出 &
+kpt+conf、color、num 三路（$9/4/9$ 通道） & kpt 已归一化（$\times640$ 还原）\\
+\code{rp\_0526\_probe*}$\times5$ & 同上 & \code{[1,25200,22]} + 探针 & 同 fp32（额外输出中间特征） & 与 fp32 完全一致 \\
+\code{shtech/SZU0526\_fp32} & $1\times3\times512\times640$ & \code{[1,20160,22]} & 同 rp 族 &
+图内含 anchor $(10,13)/(16,30)/(33,23)$ 解码 \\
+\code{shtech/SKD250526} & $1\times3\times512\times640$ & \code{[1,6720,21]} &
+kpt(8)+max(1)+num(8)+红+蓝+conf & kpt 需 \code{网格中心+raw*2*stride}；编号索引顺序与其它模型不同 \\
+\code{szu2026\_infantry\_fp32} & $1\times3\times480\times640$ & \code{[1,21,6300]} &
+color(4)+num(9)+kpt(8)（通道在前） & kpt 为像素坐标；score 取 num 最大值 \\
+\code{szu2026\_fp32\_op11} & 同上 & 同上 & 同上 & 同上 \\
+\code{szu2026\_fp32\_op11\_direct} & 同上 & 同上 & 同上 & 同上 \\
+\code{szu2026\_A\_kptnorm} & 同上 & 同上 & 同上 & kpt 已归一化（$\times640$ 还原）\\
+\code{szu2026\_B\_splitout} & 同上 & 3 个输出 & \code{color}[4,N]、\code{armor}[9,N]、\code{kpt}[8,N] &
+与 fp32 逐通道对齐（最大差 $<10^{-3}$）\\
+\code{szu2026\_512x640\_fp32} & $1\times3\times512\times640$ & \code{[1,21,6720]} & 同 fp32 & 同上 \\
+\code{szu2026\_512x640\_splitout} & 同上 & 3 个输出 & 同 splitout & 同上 \\
+\midrule
+\code{sp\_vision\_25/tiny\_resnet}、\code{sp25\_tiny\_resnet\_b1} & $1\times1\times32\times32$ & \code{[1,9]} &
+9 类数字分类器 & 无检测框，不纳入检测评估 \\
+\code{sp\_vision\_25/yolov5.bin} & --- & --- & 裸权重、无格式说明 & 无法用 onnxruntime 加载 \\
+\end{longtable}}
+
+\noindent 说明：\code{szu2026} 各变体、\code{rp\_0526} 各变体互为同一网络的导出/拆分/精度差异，解码后结果一致（见第 \ref{sec:result} 节）。
+
+% =====================================================================
+\section{实验准备工作}
+% =====================================================================
+\begin{enumerate}\itemsep2pt
+  \item \textbf{环境}：conda 环境 \code{yolo}（Python 3.11、onnxruntime-gpu 1.30、OpenCV 5.0、ultralytics 8.4）；
+        安装 \code{onnx}、\code{onnxruntime-gpu} 用于模型解析与推理。
+  \item \textbf{权重清点与 I/O 探查}：遍历 20 个 ONNX 权重，导出输入名/形状/类型、输出名/形状、producer 与 metadata、图节点类型统计。
+  \item \textbf{解码契约确认}：读取图内 \code{Slice}/\code{Split}/\code{Reshape} 常量与命名张量确定通道分段（如 \code{kpt\_scale}$=1/640$）；
+        用"已知装甲板贴到纯色画布固定位置"的合成图验证几何量与坐标域；用裁剪图与整图交叉验证几何/类别含义。
+  \item \textbf{类别标定}：用 \code{RawPic} 中 \code{outpost*}、\code{*base*}、\code{哨兵*}、\code{balance*} 等语义文件名图片反标定编号类索引。
+  \item \textbf{统一可视化}：所有格子先把图（或 ROI 裁剪）等比缩放进固定尺寸格子，再在格子坐标系中绘制框、关键点与标签，
+        使线宽（3\,px）、关键点半径（4\,px）、标签字号（0.55）在 18 行 $\times$ 11 列中完全一致。
+  \item \textbf{评判 ROI}：以合理范围内的检测框为基准（置信度 $\ge 0.45$、面积占图 $0.05\%\sim75\%$、长宽比 $0.25\sim4$，
+        且 IoU $\ge 0.5$ 被 $\ge 2$ 个模型共同检出），多装甲板图取面积最大者，按中心放大 $1.5$ 倍后裁剪到图像范围内（表 \ref{tab:roi}）。
+  \item \textbf{角点基准生成}：采用 TongjiSuperPower/sp\_vision\_25 的角点精修方案，详见 \ref{sec:ref} 节与图 \ref{fig:kptdef}。
+\end{enumerate}
+
+% =====================================================================
+\section{实验过程}
+% =====================================================================
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm, font=\small,
+  box/.style={rectangle,rounded corners=2pt,draw=blue!50!black,fill=blue!6,minimum height=7mm,inner xsep=3mm,align=center},
+  io/.style={rectangle,draw=black!60,fill=black!5,minimum height=7mm,inner xsep=3mm,align=center},
+  ar/.style={-{Latex[length=2mm]},draw=black!70}]
+  \node[io] (w) {\code{Weights/} 20 个 ONNX};
+  \node[box,right=of w] (io1) {I/O 探查\\(形状/类型/节点)};
+  \node[box,right=of io1] (dec) {图常量解析\\$\to$ 解码契约};
+  \node[box,right=of dec] (cal) {合成图/裁剪图\\标定};
+  \node[box,below=8mm of cal] (inf) {18 模型 $\times$ 11 图推理};
+  \node[box,left=of inf] (tab) {总表 + ROI 表\\+ 检测数据落盘};
+  \node[box,left=of tab] (ref) {角点精修基准\\(sp\_vision\_25)};
+  \node[box,left=of ref] (eva) {检出/角点/类别\\评估};
+  \node[io,below=8mm of eva] (out) {LaTeX 报告\\（表格 + 图表）};
+  \draw[ar] (w)--(io1); \draw[ar] (io1)--(dec); \draw[ar] (dec)--(cal);
+  \draw[ar] (cal)--(inf); \draw[ar] (inf)--(tab); \draw[ar] (tab)--(ref); \draw[ar] (ref)--(eva);
+  \draw[ar] (eva)--(out);
+\end{tikzpicture}
+\caption{实验流程：从权重解析到评估出图}\label{fig:flow}
+\end{figure}
+
+% =====================================================================
+\section{实验结果}\label{sec:result}
+% =====================================================================
+
+\subsection{评判基准关键点}\label{sec:ref}
+角点基准采用 \code{TongjiSuperPower/sp\_vision\_25} 的传统视觉角点方案（\code{tasks/auto\_aim/detector.cpp}、
+\code{armor.cpp}、\code{configs/standard3.yaml}），定义如下（图 \ref{fig:kptdef}）：
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[scale=1.0,font=\small,>=Latex]
+  % 灯条
+  \draw[fill=blue!18,draw=blue!55!black,rotate around={8:(0,0)}] (-0.28,-1.5) rectangle (0.28,1.5);
+  \draw[fill=blue!18,draw=blue!55!black,rotate around={-6:(4.2,0)}] (4.2-0.28,-1.5) rectangle (4.2+0.28,1.5);
+  % 中心线端点
+  \coordinate (LT) at (-0.36,1.72); \coordinate (LB) at (0.20,-1.72);
+  \coordinate (RT) at (3.99,1.45);  \coordinate (RB) at (4.41,-1.55);
+  \fill[red!80!black] (LT) circle (1.8pt) node[above left,font=\footnotesize]{左灯条 top};
+  \fill[red!80!black] (LB) circle (1.8pt) node[below left,font=\footnotesize]{左灯条 bottom};
+  \fill[red!80!black] (RT) circle (1.8pt) node[above right,font=\footnotesize]{右灯条 top};
+  \fill[red!80!black] (RB) circle (1.8pt) node[below right,font=\footnotesize]{右灯条 bottom};
+  % 装甲板四点
+  \draw[green!55!black,line width=0.9pt] (LT)--(RT)--(RB)--(LB)--cycle;
+  \node[green!45!black,font=\footnotesize,above] at (2.0,1.7) {装甲板四点 $[\,$左上, 左下, 右下, 右上$\,]$};
+  % 中心线与 top2bottom
+  \draw[dashed,gray] (LT)--(LB); \draw[dashed,gray] (RT)--(RB);
+  \node[gray,font=\footnotesize,rotate=90] at (-0.75,0) {\code{top2bottom}};
+  % 精修 ROI
+  \draw[orange!80!black,densely dashed,line width=0.8pt] (-1.5,-3.2) rectangle (5.5,3.2);
+  \node[orange!70!black,font=\footnotesize,below right] at (-1.5,-3.25)
+    {精修 ROI：纵向 $\pm1$ 灯条长，横向 $\pm0.75$ 板宽};
+  \draw[{Latex}-{Latex},gray] (-0.36,1.72) -- node[fill=white,inner sep=1pt,font=\scriptsize]{灯条长} (0.20,-1.72);
+  \draw[{Latex}-{Latex},gray] (-0.36,2.55) -- node[fill=white,inner sep=1pt,font=\scriptsize]{板宽} (3.99,2.55);
+\end{tikzpicture}
+\caption{基准关键点定义：灯条 \code{minAreaRect} 四角按 $y$ 排序后取上下两条短边中点作为 \code{top}/\code{bottom}（即灯条中心线端点），
+装甲板四点 $=[$左 top, 左 bottom, 右 bottom, 右 top$]$ 并整理为 $[$左上, 左下, 右下, 右上$]$；虚线为角点精修的外扩 ROI。}\label{fig:kptdef}
+\end{figure}
+
+\begin{itemize}\itemsep2pt
+  \item \textbf{灯条}：灰度 $\to$ \code{threshold} $\to$ \code{findContours(EXTERNAL, CHAIN\_APPROX\_NONE)} $\to$ \code{minAreaRect}，
+        四角按 $y$ 排序后取上两点中点与下两点中点为 \code{top} / \code{bottom}（灯条中心线两端），
+        宽度取上两点距离、长度取 $|\mathrm{bottom}-\mathrm{top}|$，
+        \code{ratio} 为长度与宽度之比，\code{angle\_error} $= |\arctan(\Delta y/\Delta x)-\pi/2|$；
+        校验 \code{angle\_error} $<45^\circ$、$1.5<$\code{ratio}$<20$、\code{length}$>8$。
+  \item \textbf{装甲板}：四点顺序 $[$左上, 左下, 右下, 右上$]$，并校验 \code{ratio} $\in(1,5)$、\code{side\_ratio} $<1.5$、\code{rectangular\_error} $<25^\circ$。
+  \item \textbf{角点精修}：以当前四点外扩旋转 ROI（纵向 $\pm1$ 灯条长、横向 $\pm0.75$ 板宽）$\to$ ROI 内重跑上述灯条提取
+        $\to$ 取与左/右角点距离和最小的灯条 $\to$ 距离和小于门限则以灯条端点覆盖四角。
+        本实验以"18 模型四点中位数"作为粗框；因图像尺度跨度 182$\sim$4096\,px，对二值化阈值做 $80\sim200$ 扫描取优，
+        接受门限按 \code{max(15px, 0.25*板宽)} 缩放（上游实现为固定阈值 150 / 固定 15\,px）。
+  \item \textbf{结果}：11/11 张图精修成功，精修结果与粗框 IoU $0.868\sim0.975$，匹配距离 $2.4\sim67$\,px（随板宽缩放），
+        四角落点与灯条中心线端点吻合（图 \ref{fig:kptpanels}，坐标见表 \ref{tab:kpt}）。
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\begin{kptpanel}{../BaseLine/B2.png}{182}{173}{30}{105}{90}{150}
+  \kptquad{42}{118}{42}{132}{74}{133}{74}{119}
+\end{kptpanel}\hfill
+\begin{kptpanel}{../BaseLine/B3.jpg}{720}{360}{205}{310}{300}{380}
+  \kptquad{226}{337}{226}{354}{272}{345}{272}{329}
+\end{kptpanel}\hfill
+\begin{kptpanel}{../BaseLine/B4.jpg}{720}{360}{340}{295}{440}{365}
+  \kptquad{365}{312}{363}{328}{414}{341}{417}{324}
+\end{kptpanel}\\[3mm]
+\begin{kptpanel}{../BaseLine/B7.jpg}{1280}{1024}{480}{580}{660}{690}
+  \kptquad{531}{606}{521}{643}{607}{663}{617}{624}
+\end{kptpanel}\hfill
+\begin{kptpanel}{../BaseLine/BB.jpg}{1280}{1024}{350}{410}{660}{570}
+  \kptquad{377}{465}{397}{544}{622}{512}{599}{436}
+\end{kptpanel}\hfill
+\begin{kptpanel}{../BaseLine/BO.jpg}{4096}{3072}{1950}{1560}{2980}{2070}
+  \kptquad{2068}{1616}{2075}{1891}{2825}{1957}{2852}{1643}
+\end{kptpanel}\\[3mm]
+\begin{kptpanel}{../BaseLine/R2.jpg}{1280}{768}{950}{380}{1210}{560}
+  \kptquad{996}{426}{1020}{523}{1165}{492}{1148}{412}
+\end{kptpanel}\hfill
+\begin{kptpanel}{../BaseLine/R3.png}{182}{146}{20}{80}{85}{125}
+  \kptquad{36}{91}{34}{104}{65}{108}{68}{93}
+\end{kptpanel}\hfill
+\begin{kptpanel}{../BaseLine/R4.png}{195}{187}{40}{90}{100}{135}
+  \kptquad{54}{103}{54}{119}{86}{120}{86}{103}
+\end{kptpanel}\\[3mm]
+\begin{kptpanel}{../BaseLine/R7.jpg}{1280}{1024}{160}{550}{310}{650}
+  \kptquad{189}{573}{182}{606}{266}{622}{272}{589}
+\end{kptpanel}\hfill
+\begin{kptpanel}{../BaseLine/RB.jpg}{1280}{1024}{300}{350}{590}{500}
+  \kptquad{325}{394}{336}{472}{547}{448}{536}{374}
+\end{kptpanel}\hfill
+\parbox{3.6cm}{\vspace{1mm}\footnotesize 绿框：基准四点；\textcolor{red!80!black}{红点}：角点序号（0 左上 / 1 左下 / 2 右下 / 3 右上）。}
+\caption{评判基准关键点（原图为 \code{BaseLine/} 原始照片，四边形与角点由 TikZ 按表 \ref{tab:kpt} 坐标叠加绘制）}\label{fig:kptpanels}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{评判基准四点坐标（原图像素）与精修信息}\label{tab:kpt}
+{\small
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+图片 & $p_0$ 左上 & $p_1$ 左下 & $p_2$ 右下 & $p_3$ 右上 & 距离(px) & 阈值 & IoU$^\dagger$ & 板宽(px)\\
+\midrule
+B2.png & (42,118) & (42,132) & (74,133) & (74,119) & 2.38 & 180 & 0.952 & 32\\
+B3.jpg & (226,337) & (226,354) & (272,345) & (272,329) & 2.84 & 100 & 0.942 & 46\\
+B4.jpg & (365,312) & (363,328) & (414,341) & (417,324) & 4.26 & 140 & 0.899 & 54\\
+B7.jpg & (531,606) & (521,643) & (607,663) & (617,624) & 3.40 & 120 & 0.975 & 96\\
+BB.jpg & (377,465) & (397,544) & (622,512) & (599,436) & 22.36 & 180 & 0.868 & 245\\
+BO.jpg & (2068,1616) & (2075,1891) & (2825,1957) & (2852,1643) & 67.13 & 100 & 0.899 & 785\\
+R2.jpg & (996,426) & (1020,523) & (1165,492) & (1148,412) & 18.71 & 160 & 0.919 & 170\\
+R3.png & (36,91) & (34,104) & (65,108) & (68,93) & 2.78 & 180 & 0.930 & 34\\
+R4.png & (54,103) & (54,119) & (86,120) & (86,103) & 3.33 & 80 & 0.897 & 32\\
+R7.jpg & (189,573) & (182,606) & (266,622) & (272,589) & 3.27 & 100 & 0.961 & 90\\
+RB.jpg & (325,394) & (336,472) & (547,448) & (536,374) & 15.46 & 180 & 0.908 & 222\\
+\bottomrule
+\end{tabular}}
+\par\vspace{1mm}{\footnotesize $^\dagger$ 为精修结果与多模型共识粗框的四边形 IoU。}
+\end{table}
+
+\subsection{评判 ROI}
+\begin{table}[htbp]
+\centering\small
+\caption{各测试图的评判 ROI（基准框按中心放大 $1.5$ 倍并裁剪到图像范围内）}\label{tab:roi}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+图片 & 图像尺寸 & 基准框(px) & ROI(px) & ROI 尺寸 & 共同检出模型数\\
+\midrule
+B2.png & $182\times173$ & 31$\times$16 & 47$\times$24 & 47$\times$24 & 17\\
+B3.jpg & $720\times360$ & 50$\times$24 & 74$\times$31 & 74$\times$31 & 17\\
+B4.jpg & $720\times360$ & 56$\times$31 & 85$\times$46 & 85$\times$46 & 17\\
+B7.jpg & $1280\times1024$ & 97$\times$57 & 146$\times$86 & 146$\times$86 & 16\\
+BB.jpg & $1280\times1024$ & 264$\times$122 & 395$\times$182 & 395$\times$182 & 17\\
+BO.jpg & $4096\times3072$ & 811$\times$389 & 1217$\times$583 & 1217$\times$583 & 17\\
+R2.jpg & $1280\times768$ & 169$\times$111 & 254$\times$166 & 254$\times$166 & 17\\
+R3.png & $182\times146$ & 34$\times$18 & 51$\times$27 & 51$\times$27 & 16\\
+R4.png & $195\times187$ & 34$\times$17 & 51$\times$26 & 51$\times$26 & 17\\
+R7.jpg & $1280\times1024$ & 93$\times$51 & 139$\times$76 & 139$\times$76 & 17\\
+RB.jpg & $1280\times1024$ & 235$\times$109 & 353$\times$164 & 353$\times$164 & 16\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{检出情况}
+表 \ref{tab:det} 给出每个模型在 11 张图上的 top-1 检出（标签格式 \code{颜色+编号:置信度}，颜色 $B$ 蓝 / $R$ 红，编号 $O$ 前哨站 / $B$ 基地 / 数字）。
+检出判定为与基准四边形 IoU $\ge0.3$；18 个权重在 11 张图上均命中正确装甲板，颜色正确率 $100\%$。
+
+\begin{table}[htbp]
+\centering\tiny
+\caption{各模型 top-1 检出结果矩阵（行=模型，列=测试图）}\label{tab:det}
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{@{}l*{11}{c}@{}}
+\toprule
+模型 & B2.png & B3.jpg & B4.jpg & B7.jpg & BB.jpg & BO.jpg & R2.jpg & R3.png & R4.png & R7.jpg & RB.jpg\\
+\midrule
+\code{rp\_0526} (fp16) & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{rp\_0526\_fp32} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{rp\_0526\_norm} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{rp\_0526\_split} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{rp\_0526\_probe} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{...probe\_concat22} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{...probe\_concat23} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{...probe\_cv3} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{...probe\_model10} & B2:.95 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.93 & R7:.96 & RB:.92\\
+\code{shtech/SZU0526} & B2:.94 & B3:.95 & B4:.97 & B7:.97 & BB:.92 & BO:.96 & R2:.94 & R3:.94 & R4:.94 & R7:.96 & RB:.92\\
+\code{szu2026\_infantry} & B2:.96 & B3:.93 & B4:.94 & B7:.92 & BB:.88 & BO:.91 & R2:.92 & R3:.92 & R4:.93 & R7:.92 & RB:.90\\
+\code{szu2026\_op11} & B2:.96 & B3:.93 & B4:.94 & B7:.92 & BB:.88 & BO:.91 & R2:.92 & R3:.92 & R4:.93 & R7:.92 & RB:.90\\
+\code{szu2026\_op11\_direct} & B2:.96 & B3:.93 & B4:.94 & B7:.92 & BB:.88 & BO:.91 & R2:.92 & R3:.92 & R4:.93 & R7:.92 & RB:.90\\
+\code{szu2026\_A\_kptnorm} & B2:.96 & B3:.93 & B4:.94 & B7:.92 & BB:.88 & BO:.91 & R2:.92 & R3:.92 & R4:.93 & R7:.92 & RB:.90\\
+\code{szu2026\_B\_splitout} & B2:.96 & B3:.93 & B4:.94 & B7:.92 & BB:.88 & BO:.91 & R2:.92 & R3:.92 & R4:.93 & R7:.92 & RB:.90\\
+\code{szu2026\_512\_fp32} & B2:.96 & B3:.93 & B4:.94 & B7:.95 & BB:.90 & BO:.91 & R2:.92 & R3:.94 & R4:.95 & R7:.94 & RB:.95\\
+\code{szu2026\_512\_splitout} & B2:.96 & B3:.93 & B4:.94 & B7:.95 & BB:.90 & BO:.91 & R2:.92 & R3:.94 & R4:.95 & R7:.94 & RB:.95\\
+\midrule
+\code{shtech/SKD250526} & B2:.87 & B3:.93 & B4:.93 & B7:.66 & BB:.87 & BO:.84 & R2:.93 & R3:.87 & R4:.88 & \bad{R4:.59} & \bad{RO:.35}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{角点精度}
+基准为 \ref{sec:ref} 节的角点精修结果；"与粗框偏差"用于衡量模型相对多模型共识的离群程度。
+表 \ref{tab:eval} 为逐模型指标，图 \ref{fig:metric} 为按模型组的可视化对比。
+
+\begin{table}[htbp]
+\centering\small
+\caption{逐模型评估：检出、角点精度与类别正确率（18 个检测权重）}\label{tab:eval}
+{\footnotesize
+\begin{tabular}{@{}lccccccccc@{}}
+\toprule
+模型 & 命中 & IoU & \makecell{角点误差\\(px)} & \makecell{最大误差\\(px)} & \makecell{误差/\\板宽} &
+\makecell{与粗框\\偏差(px)} & 颜色 & 编号 & 置信度\\
+\midrule
+\code{rp\_0526} (fp16) & 11/11 & 0.924 & 3.31 & 5.82 & 2.0\% & 0.03 & 100\% & 100\% & 0.95\\
+\code{rp\_0526\_fp32} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{rp\_0526\_norm} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{rp\_0526\_split} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{rp\_0526\_probe} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{...probe\_concat22} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{...probe\_concat23} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{...probe\_cv3} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{...probe\_model10} & 11/11 & 0.923 & 3.31 & 5.85 & 2.0\% & 0.01 & 100\% & 100\% & 0.95\\
+\code{shtech/SZU0526} & 11/11 & 0.922 & 3.32 & 5.86 & 2.0\% & 0.07 & 100\% & 100\% & 0.95\\
+\midrule
+\code{szu2026\_512\_fp32} & 11/11 & 0.881 & 4.89 & 7.52 & 3.1\% & 3.14 & 100\% & 100\% & 0.93\\
+\code{szu2026\_512\_splitout} & 11/11 & 0.881 & 4.89 & 7.52 & 3.1\% & 3.14 & 100\% & 100\% & 0.93\\
+\code{szu2026\_infantry} & 11/11 & 0.883 & 4.94 & 7.62 & 3.0\% & 3.28 & 100\% & 100\% & 0.92\\
+\code{szu2026\_op11} & 11/11 & 0.883 & 4.94 & 7.62 & 3.0\% & 3.28 & 100\% & 100\% & 0.92\\
+\code{szu2026\_op11\_direct} & 11/11 & 0.883 & 4.94 & 7.62 & 3.0\% & 3.28 & 100\% & 100\% & 0.92\\
+\code{szu2026\_A\_kptnorm} & 11/11 & 0.883 & 4.94 & 7.62 & 3.0\% & 3.28 & 100\% & 100\% & 0.92\\
+\code{szu2026\_B\_splitout} & 11/11 & 0.883 & 4.94 & 7.62 & 3.0\% & 3.28 & 100\% & 100\% & 0.92\\
+\midrule
+\code{shtech/SKD250526} & 11/11 & \bad{0.451} & \bad{47.49} & \bad{86.95} & \bad{30.3\%} & \bad{46.85} & 100\% & \bad{82\%} & 0.79\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=3 by 1,horizontal sep=1.1cm},
+  width=5.1cm,height=5.4cm,
+  tick label style={font=\scriptsize},
+  label style={font=\scriptsize}, title style={font=\small},
+  symbolic y coords={SKD250526,szu2026-512,szu2026-480,SZU0526,rp\_0526},
+  ytick=data, y tick label style={font=\scriptsize},
+  enlarge y limits=0.18, xmajorgrids, grid style={gray!25},
+  every axis plot/.append style={fill=blue!45,draw=blue!55!black}]
+\nextgroupplot[title={角点误差 (px)},xlabel={px},xbar,xmin=0,xmax=58,nodes near coords,every node near coord/.append style={font=\tiny}]
+  \addplot coordinates {(3.31,rp\_0526) (3.32,SZU0526) (4.94,szu2026-480) (4.89,szu2026-512) (47.49,SKD250526)};
+\nextgroupplot[title={四边形 IoU},xlabel={IoU},xbar,yticklabels={},xmin=0,xmax=1.1,nodes near coords,every node near coord/.append style={font=\tiny}]
+  \addplot coordinates {(0.923,rp\_0526) (0.922,SZU0526) (0.883,szu2026-480) (0.881,szu2026-512) (0.451,SKD250526)};
+\nextgroupplot[title={编号正确率 (\%)},xlabel={\%},xbar,yticklabels={},xmin=0,xmax=112,nodes near coords,every node near coord/.append style={font=\tiny}]
+  \addplot coordinates {(100,rp\_0526) (100,SZU0526) (100,szu2026-480) (100,szu2026-512) (81.8,SKD250526)};
+\end{groupplot}
+\end{tikzpicture}
+\caption{按模型组汇总的关键指标（rp\_0526 族含 9 个权重、szu2026-480 族 5 个、szu2026-512 族 2 个）。
+全部 18 个权重命中率均为 11/11，颜色正确率均为 100\%。}\label{fig:metric}
+\end{figure}
+
+\subsection{模型分组结论}
+\begin{enumerate}\itemsep2pt
+  \item \textbf{\code{rp\_0526} 系列 9 个权重等价}：\code{fp16}/\code{fp32}/\code{norm}/\code{split}/\code{probe}$\times5$ 四点逐点一致（最大差 $0.04$\,px），
+        差异仅为导出格式（fp16 输入、kpt 归一化、拆分输出、探针输出），推理结果无实质区别；
+        部署时任选其一，追求速度选 fp16，追求兼容性选 fp32。
+  \item \textbf{\code{shtech/SZU0526\_fp32}} 与 \code{rp\_0526} 基本等价（与粗框偏差 $0.07$\,px），其图内自带 anchor 解码，可直接部署。
+  \item \textbf{\code{szu2026} 系列 7 个权重等价}：\code{kptnorm} 仅改变 kpt 归一化（$\times640$ 还原后一致）；
+        $512\times640$ 输入版本与 $480\times640$ 版本结果几乎相同（$4.89$ vs $4.94$\,px）且略优。
+  \item \textbf{\code{shtech/SKD250526}} 明显弱于其它权重：虽 11 张图均命中同一块装甲板，但四边形 IoU 仅 $0.451$、
+        角点误差 $47.5$\,px（$\approx30\%$ 板宽，为其它权重的 10 倍），编号正确率 $82\%$（R7 判成 4 号、RB 判成前哨站），
+        与蒸馏模型定位相符；如需部署建议重新标定输出层或改用非蒸馏版本。
+  \item \textbf{不参与检测评估}：\code{sp\_vision\_25/yolov5.bin}（裸权重、无格式说明）与 2 个 $32\times32$ 数字分类器（无检测框）。
+\end{enumerate}
+
+\subsection{局限与后续建议}
+\begin{itemize}\itemsep2pt
+  \item 参考基准 = 多模型共识粗框 + sp\_vision\_25 角点精修（11/11 通过），仍不是人工标注 GT；
+        精修采用"灯条中心线端点"定义，与模型训练口径一致。若要给出严格精度，建议人工标注 11 张图四点后替换 \code{Test/reference\_kpt.json} 重新评估。
+  \item 精修中的二值化阈值按 $80\sim200$ 扫描取优、接受门限按 \code{max(15px, 0.25*板宽)} 缩放，
+        以适配本实验 182$\sim$4096\,px 的尺度跨度（上游实现使用固定阈值 150 / 固定 15\,px）。
+  \item 评估样本仅 11 张（每类 1 张），缺少多姿态/多距离/遮挡场景；
+        建议用 \code{RawPic}（含 \code{outpost*}、\code{哨兵*}、\code{base*}）扩充测试集并复核类别索引映射。
+  \item \code{SKD250526} 的编号通道索引顺序与其它模型不同，跨模型比较类别时应按各自映射转换。
+\end{itemize}
+
+\end{document}

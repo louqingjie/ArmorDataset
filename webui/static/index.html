@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>装甲板自动标注工作台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= 顶栏 ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">RM</span>
+      <div class="brand-text">
+        <b>装甲板自动标注工作台</b>
+        <span class="muted" id="brandSub">双教师伪标签 · 传统视觉精修 · 人工复核</span>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <label class="field-inline">
+        <span>输出目录</span>
+        <select id="outSelect" class="input input-sm"></select>
+      </label>
+      <span class="badge" id="outMetaBadge">—</span>
+      <span class="badge" id="jobBadge" data-state="idle">空闲</span>
+    </div>
+    <div class="topbar-right">
+      <span class="muted mono" id="serverInfo">—</span>
+      <button class="btn btn-ghost btn-sm" id="btnRefreshAll" title="重新拉取状态/列表/统计">刷新</button>
+      <button class="btn btn-ghost btn-sm" id="btnHelp">快捷键</button>
+    </div>
+  </header>
+
+  <!-- ================= 侧栏 ================= -->
+  <nav class="sidebar">
+    <button class="nav-item active" data-tab="task">
+      <span class="nav-ico">▶</span><span>标注任务</span>
+    </button>
+    <button class="nav-item" data-tab="review">
+      <span class="nav-ico">✎</span><span>预览复核</span><span class="nav-badge" id="navReviewBadge">0</span>
+    </button>
+    <button class="nav-item" data-tab="dash">
+      <span class="nav-ico">▤</span><span>质量仪表盘</span>
+    </button>
+    <button class="nav-item" data-tab="export">
+      <span class="nav-ico">⤓</span><span>导出训练集</span>
+    </button>
+    <div class="sidebar-foot">
+      <div class="kv"><span>教师</span><b id="sideTeachers">—</b></div>
+      <div class="kv"><span>工作目录</span><b class="mono" id="sideRoot">—</b></div>
+      <div class="kv"><span>预览缓存</span><b id="sidePreview">—</b></div>
+    </div>
+  </nav>
+
+  <!-- ================= 内容区 ================= -->
+  <main class="content">
+
+    <!-- ---------- 任务 ---------- -->
+    <section class="tab-panel active" id="tab-task">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>数据源</h3><span class="muted">对应 CLI <code>--images / --out</code></span></div>
+          <div class="card-body form-grid">
+            <label class="field"><span>图片目录</span>
+              <select id="f_images" class="input"></select>
+            </label>
+            <label class="field"><span>输出目录</span>
+              <input id="f_out" class="input" placeholder="AutoLabel">
+            </label>
+            <label class="field"><span>处理数量 <i class="hint" data-tip="0 = 全量">?</i></span>
+              <input id="f_limit" class="input" type="number" min="0" step="100" value="1000">
+            </label>
+            <label class="field"><span>采样方式</span>
+              <select id="f_sample" class="input">
+                <option value="stratified">分层采样（按目录×尺寸）</option>
+                <option value="random">纯随机</option>
+                <option value="first">顺序取前 N 张</option>
+              </select>
+            </label>
+            <label class="field"><span>并行进程</span>
+              <input id="f_workers" class="input" type="number" min="1" max="16" value="2">
+            </label>
+            <label class="field"><span>随机种子</span>
+              <input id="f_seed" class="input" type="number" value="0">
+            </label>
+            <label class="check"><input type="checkbox" id="f_no_val"><span>不含 val 子目录</span></label>
+            <label class="check"><input type="checkbox" id="f_no_resume"><span>忽略已完成，全部重跑</span></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>流程参数</h3><span class="muted">与流水线默认值一致，可覆盖</span></div>
+          <div class="card-body form-grid">
+            <label class="field"><span>ROI 放大倍数</span>
+              <input id="f_expand" class="input" type="number" step="0.1" min="1" value="1.5">
+            </label>
+            <label class="field"><span>置信度阈值</span>
+              <input id="f_conf" class="input" type="number" step="0.05" min="0" max="1" value="0.25">
+            </label>
+            <label class="field"><span>单图最大目标</span>
+              <input id="f_max_det" class="input" type="number" min="1" max="100" value="20">
+            </label>
+            <label class="field"><span>小目标跳过精修 <i class="hint" data-tip="板宽小于该像素值时不做传统视觉精修">?</i></span>
+              <input id="f_min_refine_plate_w" class="input" type="number" step="1" min="0" value="24">
+            </label>
+            <label class="field"><span>双教师一致 IoU</span>
+              <input id="f_agree_iou" class="input" type="number" step="0.05" min="0" max="1" value="0.85">
+            </label>
+            <label class="field"><span>角点差上限（%板宽）</span>
+              <input id="f_agree_kpt" class="input" type="number" step="0.5" min="0" value="5">
+            </label>
+            <label class="field"><span>共识策略</span>
+              <select id="f_consensus" class="input">
+                <option value="mean">两教师均值</option>
+                <option value="primary">以主教师为准</option>
+              </select>
+            </label>
+            <label class="field"><span>标签类别模式</span>
+              <select id="f_class_mode" class="input">
+                <option value="single">single（单类 0）</option>
+                <option value="merged">merged（颜色×编号）</option>
+              </select>
+            </label>
+            <label class="field span-2"><span>精修补充阈值 <i class="hint" data-tip="第一阶段固定用 80..200 七档，失败后才用这里的补充档">?</i></span>
+              <input id="f_refine_extra" class="input mono" value="20,40,60,220,240">
+            </label>
+            <label class="field"><span>抽检面板数</span>
+              <input id="f_panels" class="input" type="number" min="0" value="60">
+            </label>
+            <label class="field"><span>拼版列数</span>
+              <input id="f_sheet_cols" class="input" type="number" min="1" max="10" value="5">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>任务控制</h3>
+          <span class="muted">子进程 <code>python -m autolabel.run</code>，同一输出目录同时只允许一个任务</span>
+        </div>
+        <div class="card-body row wrap gap">
+          <button class="btn btn-primary" id="btnStart">开始标注</button>
+          <button class="btn btn-primary-soft" id="btnResume">续跑（跳过已完成）</button>
+          <button class="btn btn-soft" id="btnStatsOnly">仅重算统计</button>
+          <button class="btn btn-danger-soft" id="btnStop">停止任务</button>
+          <span class="spacer"></span>
+          <span class="chip" id="chipTotal">总数 —</span>
+          <span class="chip" id="chipMs">单图 —</span>
+          <span class="chip" id="chipElapsed">耗时 —</span>
+        </div>
+        <div class="card-body">
+          <div class="progress"><div class="progress-bar" id="jobBar"></div></div>
+          <div class="row gap-sm mt-sm">
+            <b id="jobProgressText">尚未运行任务</b>
+            <span class="muted" id="jobCmd"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>运行日志</h3>
+          <div class="row gap-sm">
+            <select id="logLevel" class="input input-sm">
+              <option value="all">全部</option>
+              <option value="info">仅关键信息</option>
+              <option value="error">仅错误</option>
+            </select>
+            <label class="check"><input type="checkbox" id="logAuto" checked><span>自动滚底</span></label>
+            <button class="btn btn-ghost btn-sm" id="btnLogCopy">复制</button>
+            <a class="btn btn-ghost btn-sm" id="btnLogDownload" download="webui_job.log">下载</a>
+          </div>
+        </div>
+        <pre class="log" id="logView">（暂无日志）</pre>
+      </div>
+    </section>
+
+    <!-- ---------- 复核 ---------- -->
+    <section class="tab-panel" id="tab-review">
+      <div class="review-grid">
+        <aside class="review-left card">
+          <div class="card-head compact">
+            <h3>图片列表</h3><span class="muted mono" id="rvCount">0</span>
+          </div>
+          <div class="card-body tight">
+            <input id="rvSearch" class="input input-sm" placeholder="搜索文件名 / key">
+            <select id="rvFilter" class="input input-sm mt-xs">
+              <option value="review">待复核</option>
+              <option value="all">全部</option>
+              <option value="conflict">冲突 conflict</option>
+              <option value="no_match">单侧检出 no_match</option>
+              <option value="refine_failed">精修失败 refine_failed</option>
+              <option value="tiny">极小目标 tiny</option>
+              <option value="refine_skipped">跳过精修（小目标）</option>
+              <option value="agree">双教师一致 agree</option>
+              <option value="edited">已人工修改</option>
+              <option value="reviewed">已确认 reviewed</option>
+              <option value="background">无目标（背景）</option>
+              <option value="num_LB">编号 = LB（大基地装甲板）</option>
+              <option value="num_B">编号 = B（基地）</option>
+              <option value="deprecated">已废弃（不参与训练）</option>
+              <option value="active">未废弃</option>
+            </select>
+            <select id="rvSort" class="input input-sm mt-xs">
+              <option value="priority">按复核优先级</option>
+              <option value="key">按文件名</option>
+              <option value="plate_w">按板宽降序</option>
+              <option value="score">按置信度降序</option>
+              <option value="n_obj">按目标数</option>
+            </select>
+          </div>
+          <div class="list" id="rvList"></div>
+          <div class="list-foot row gap-sm">
+            <button class="btn btn-ghost btn-sm" id="rvMore">加载更多</button>
+            <button class="btn btn-soft btn-sm" id="rvBatch" title="对列表中仍待复核的前 20 张执行“全部接受”">批量接受前20张</button>
+            <button class="btn btn-danger-soft btn-sm" id="rvBatchDep" title="把当前列表前 20 张标记为废弃（不参与训练导出）">批量废弃前20张</button>
+          </div>
+        </aside>
+
+        <div class="review-center card">
+          <div class="card-head compact">
+            <h3 id="rvTitle">未选择图片</h3>
+            <div class="row gap-sm">
+              <label class="check"><input type="checkbox" id="rvShowCoarse" checked><span>显示粗框</span></label>
+              <label class="check"><input type="checkbox" id="rvShowIdx" checked><span>角点序号</span></label>
+              <button class="btn btn-ghost btn-sm" id="rvFit">适应窗口</button>
+              <button class="btn btn-ghost btn-sm" id="rvOneOne">1:1 高清</button>
+              <button class="btn btn-ghost btn-sm" id="rvUndo">撤销</button>
+              <button class="btn btn-primary btn-sm" id="rvSave">保存 <span class="kbd">Ctrl+S</span></button>
+              <span class="chip" id="rvDirty">无改动</span>
+            </div>
+          </div>
+          <div class="canvas-wrap" id="rvCanvasWrap">
+            <canvas id="rvCanvas"></canvas>
+            <div class="canvas-hint" id="rvHint">拖动角点修改 · 框内拖动整体平移 · 滚轮缩放 · 空格/空白处拖动平移</div>
+          </div>
+          <div class="hintbar">
+            <span><b>←/→</b> 切图</span><span><b>A</b> 全部接受</span><span><b>S</b> 跳过</span>
+            <span><b>Del</b> 删除选中</span><span><b>D</b> 废弃/取消废弃</span><span><b>Shift+D</b> 批量废弃</span>
+            <span><b>Ctrl+Z</b> 撤销</span><span><b>Ctrl+S</b> 保存</span>
+            <span><b>1-4</b> 选中角点</span>
+          </div>
+        </div>
+
+        <aside class="review-right card">
+          <div class="card-head compact"><h3>目标与信息</h3><span class="chip" id="rvIdx">—</span></div>
+          <div class="card-body tight scroll" id="rvObjects"></div>
+          <div class="card-body tight row gap-sm wrap">
+            <button class="btn btn-soft btn-sm" id="rvAcceptAll">全部接受(A)</button>
+            <button class="btn btn-soft btn-sm" id="rvNext">下一张(→)</button>
+            <button class="btn btn-danger-soft btn-sm" id="rvBg">标记背景</button>
+            <button class="btn btn-soft btn-sm" id="rvDep" title="标记/取消废弃（不参与训练导出）　快捷键 D">废弃本图 <span class="kbd">D</span></button>
+            <button class="btn btn-ghost btn-sm" id="rvRestore">恢复本图原值</button>
+          </div>
+          <div class="card-body tight scroll mono" id="rvMeta" style="max-height:220px"></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ---------- 仪表盘 ---------- -->
+    <section class="tab-panel" id="tab-dash">
+      <div class="card">
+        <div class="card-head">
+          <h3>质量仪表盘</h3>
+          <div class="row gap-sm">
+            <span class="muted" id="dashStamp">—</span>
+            <label class="field-inline"><span>重出面板</span>
+              <input id="dashPanels" class="input input-sm" type="number" min="0" value="60" style="width:80px">
+            </label>
+            <button class="btn btn-soft btn-sm" id="btnStatsRefresh">重算统计并重出面板</button>
+            <button class="btn btn-ghost btn-sm" id="btnDashReload">重新读取</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="metrics" id="dashMetrics"></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-head"><h3>板宽分布（px）</h3></div>
+          <div class="card-body"><canvas class="chart" id="chartPlate" height="180"></canvas></div></div>
+        <div class="card"><div class="card-head"><h3>粗框→精修角点位移（%板宽）</h3></div>
+          <div class="card-body"><canvas class="chart" id="chartShift" height="180"></canvas></div></div>
+        <div class="card"><div class="card-head"><h3>flags 计数</h3></div>
+          <div class="card-body"><canvas class="chart" id="chartFlags" height="200"></canvas></div></div>
+        <div class="card"><div class="card-head"><h3>复核构成</h3></div>
+          <div class="card-body"><canvas class="chart" id="chartReview" height="200"></canvas></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-head"><h3>颜色 / 编号分布</h3></div>
+          <div class="card-body" id="dashDist"></div></div>
+        <div class="card"><div class="card-head"><h3>耗时与流程</h3></div>
+          <div class="card-body" id="dashTiming"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>抽检拼版图</h3><span class="muted">点击放大查看</span></div>
+        <div class="card-body thumbs" id="dashThumbs"></div>
+      </div>
+    </section>
+
+    <!-- ---------- 导出 ---------- -->
+    <section class="tab-panel" id="tab-export">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>导出配置</h3><span class="muted">生成 Ultralytics 可直接训练的目录</span></div>
+          <div class="card-body form-grid">
+            <label class="field"><span>源输出目录</span><input id="e_out" class="input"></label>
+            <label class="field"><span>导出目录</span><input id="e_dest" class="input" value="TrainSet/armor_pose_v1"></label>
+            <label class="field"><span>过滤条件</span>
+              <select id="e_filter" class="input">
+                <option value="all">全部有目标的图</option>
+                <option value="high">仅高可信（agree）</option>
+                <option value="exclude_review">排除仍有待复核目标</option>
+                <option value="reviewed">仅人工确认过</option>
+              </select>
+            </label>
+            <label class="field"><span>对象级过滤</span>
+              <select id="e_objfilter" class="input">
+                <option value="keep_all">保留全部目标</option>
+                <option value="drop_review">剔除待复核目标</option>
+              </select>
+            </label>
+            <label class="field span-2"><span>排序方式 <i class="hint" data-tip="交错均衡：按 R1→B1→P1→N1→R2→… 的周期轮流取图并循环；限制数量时取到的仍是各类均匀的子集；val 也按等距抽取保证两侧分布一致">?</i></span>
+              <select id="e_order" class="input">
+                <option value="balanced">交错均衡（R1→B1→R2… 循环往复）</option>
+                <option value="random">随机打乱</option>
+                <option value="key">按文件名</option>
+              </select>
+            </label>
+            <label class="field"><span>val 比例</span>
+              <input id="e_val" class="input" type="number" step="0.05" min="0" max="0.9" value="0.1">
+            </label>
+            <label class="field"><span>类别模式</span>
+              <select id="e_mode" class="input">
+                <option value="single">single（单类 0）</option>
+                <option value="merged">merged（颜色×编号 36 类）</option>
+              </select>
+            </label>
+            <label class="field"><span>图片方式</span>
+              <select id="e_imgmode" class="input">
+                <option value="copy">拷贝（占空间）</option>
+                <option value="symlink">软链接（省空间）</option>
+                <option value="none">不导出图片（仅标签）</option>
+              </select>
+            </label>
+            <label class="field"><span>上限（0=不限）</span>
+              <input id="e_limit" class="input" type="number" min="0" value="0">
+            </label>
+            <label class="check"><input type="checkbox" id="e_bg"><span>包含背景图（无目标）</span></label>
+            <label class="check"><input type="checkbox" id="e_overwrite"><span>覆盖非空导出目录</span></label>
+            <label class="field"><span>随机种子</span><input id="e_seed" class="input" type="number" value="0"></label>
+          </div>
+          <div class="card-body row gap-sm">
+            <button class="btn btn-soft" id="btnPreflight">预检</button>
+            <button class="btn btn-primary" id="btnExport">开始导出</button>
+            <span class="spacer"></span>
+            <span class="chip" id="exportState">未开始</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>预检 / 结果</h3><span class="muted" id="exportDestLabel">—</span></div>
+          <div class="card-body" id="exportReport"><p class="muted">点击“预检”查看命中图片与类别分布。</p></div>
+          <div class="card-body">
+            <div class="progress"><div class="progress-bar" id="exportBar"></div></div>
+            <pre class="log log-sm" id="exportYaml">（data.yaml 预览）</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- toast 容器 / 放大预览层 -->
+<div class="toasts" id="toasts"></div>
+<div class="modal" id="modal"><img id="modalImg" alt="预览"><div class="modal-cap" id="modalCap"></div></div>
+<div class="help-pop" id="helpPop">
+  <h4>快捷键</h4>
+  <div class="help-grid">
+    <b>← / →</b><span>上一张 / 下一张</span>
+    <b>A</b><span>本图全部接受</span>
+    <b>S</b><span>跳过本图</span>
+    <b>Del</b><span>删除选中目标</span>
+    <b>D</b><span>废弃 / 取消废弃本图（不参与训练）</span>
+    <b>Shift+D</b><span>批量废弃列表前 20 张</span>
+    <b>1-4</b><span>选中第 N 个角点</span>
+    <b>Ctrl+Z</b><span>撤销上一步</span>
+    <b>Ctrl+S</b><span>保存并备份</span>
+    <b>滚轮</b><span>以鼠标为中心缩放</span>
+    <b>空白拖动</b><span>平移画布</span>
+  </div>
+</div>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

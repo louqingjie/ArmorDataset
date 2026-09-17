@@ -1,0 +1,213 @@
+{
+ "key": "9944",
+ "image": "9944.jpg",
+ "rel": "9944.jpg",
+ "path": "/home/wpie/ArmorDataset/RawPic/SUM/9944.jpg",
+ "size": [
+  768,
+  1280
+ ],
+ "teachers": [
+  "rp_0526_fp32",
+  "shtech/SZU0526_fp32"
+ ],
+ "config": {
+  "expand": 1.5,
+  "min_roi_side": 8,
+  "conf": 0.25,
+  "max_det": 20,
+  "min_refine_plate_w": 24.0,
+  "refine_thresholds_base": [
+   80,
+   100,
+   120,
+   140,
+   160,
+   180,
+   200
+  ],
+  "refine_thresholds_extra": [
+   20,
+   40,
+   60,
+   220,
+   240
+  ],
+  "agree_iou": 0.85,
+  "agree_kpt_pct": 0.05,
+  "consensus": "mean",
+  "teachers": [
+   "rp_0526_fp32",
+   "shtech/SZU0526_fp32"
+  ]
+ },
+ "class_mode": "single",
+ "kpt_order": [
+  "LT",
+  "LB",
+  "RB",
+  "RT"
+ ],
+ "n_obj": 1,
+ "n_review": 0,
+ "objects": [
+  {
+   "flags": [
+    "agree",
+    "refine_ok"
+   ],
+   "color": 1,
+   "num": 4,
+   "color_name": "R",
+   "num_name": "4",
+   "pcolor": 0.999931812286377,
+   "pnum": 0.999519944190979,
+   "score_primary": 0.9264,
+   "score_secondary": 0.9263,
+   "plate_w": 36.35,
+   "bar_len": 16.68,
+   "primary": {
+    "model": "rp_0526_fp32",
+    "score": 0.9264,
+    "color": 1,
+    "color_name": "R",
+    "num": 4,
+    "num_name": "4",
+    "pcolor": 0.9999,
+    "pnum": 0.9995,
+    "quad": [
+     [
+      600.73,
+      592.9
+     ],
+     [
+      601.36,
+      609.61
+     ],
+     [
+      637.85,
+      609.09
+     ],
+     [
+      636.95,
+      592.48
+     ]
+    ],
+    "box": [
+     600.73,
+     592.48,
+     637.85,
+     609.61
+    ]
+   },
+   "secondary": {
+    "model": "shtech/SZU0526_fp32",
+    "score": 0.9263,
+    "color": 1,
+    "color_name": "R",
+    "num": 4,
+    "num_name": "4",
+    "pcolor": 0.9999,
+    "pnum": 0.9995,
+    "quad": [
+     [
+      600.69,
+      592.92
+     ],
+     [
+      601.39,
+      609.63
+     ],
+     [
+      637.82,
+      609.11
+     ],
+     [
+      636.92,
+      592.49
+     ]
+    ],
+    "box": [
+     600.69,
+     592.49,
+     637.82,
+     609.63
+    ]
+   },
+   "source": "refine",
+   "reason": null,
+   "refine": {
+    "expand": 1.5,
+    "roi": [
+     591,
+     588,
+     648,
+     614
+    ],
+    "roi_wh_px": [
+     57,
+     26
+    ],
+    "plate_w_coarse": 36.35,
+    "accepted": true,
+    "thr": 100,
+    "dist": 3.34,
+    "accept": 15.0,
+    "armor_ratio": 2.15,
+    "side_ratio": 1.0,
+    "armor_ok": true,
+    "stage": "base",
+    "iou_vs_coarse": 0.916,
+    "plate_w_refine": 36.5,
+    "plate_w_ratio": 1.004,
+    "d_coarse_to_refine_px": 0.84,
+    "d_coarse_to_refine_pct": 2.3
+   },
+   "quad_final_px": [
+    [
+     600.5,
+     592.0
+    ],
+    [
+     600.5,
+     609.0
+    ],
+    [
+     637.0,
+     609.0
+    ],
+    [
+     637.0,
+     592.0
+    ]
+   ],
+   "quad_coarse_px": [
+    [
+     600.71,
+     592.91
+    ],
+    [
+     601.38,
+     609.62
+    ],
+    [
+     637.84,
+     609.1
+    ],
+    [
+     636.94,
+     592.48
+    ]
+   ],
+   "norm_size": [
+    1280.0,
+    768.0
+   ],
+   "review": false,
+   "iou_two_teachers": 0.9964,
+   "kpt_diff_px": 0.035,
+   "kpt_diff_pct": 0.1,
+   "d_secondary_px": 0.035
+  }
+ ]
+}

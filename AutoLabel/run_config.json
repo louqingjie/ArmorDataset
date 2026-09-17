@@ -1,0 +1,39 @@
+{
+ "args": {
+  "images": "/home/wpie/ArmorDataset/RawPic/SUM",
+  "out": "/home/wpie/ArmorDataset/AutoLabel",
+  "limit": 0,
+  "sample": "stratified",
+  "seed": 0,
+  "no_val": false,
+  "class_mode": "single",
+  "expand": 1.5,
+  "min_roi_side": 8,
+  "conf": 0.25,
+  "max_det": 20,
+  "min_refine_plate_w": 24.0,
+  "refine_extra_thresholds": "20,40,60,220,240",
+  "agree_iou": 0.85,
+  "agree_kpt_pct": 0.05,
+  "consensus": "mean",
+  "workers": 4,
+  "no_resume": false,
+  "panels": 60,
+  "sheet_cols": 6,
+  "stats_only": false
+ },
+ "teachers": [
+  {
+   "role": "primary",
+   "label": "rp_0526_fp32",
+   "rel": "rp_0526_fp32.onnx",
+   "kind": "kpt22_raw"
+  },
+  {
+   "role": "secondary",
+   "label": "shtech/SZU0526_fp32",
+   "rel": "shtech/SZU0526_fp32.onnx",
+   "kind": "kpt22_raw"
+  }
+ ]
+}

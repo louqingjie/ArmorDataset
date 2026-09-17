@@ -1,0 +1,308 @@
+{
+ "key": "2344_3",
+ "image": "2344_3.jpg",
+ "rel": "2344_3.jpg",
+ "path": "/home/wpie/ArmorDataset/RawPic/SUM/2344_3.jpg",
+ "size": [
+  640,
+  640
+ ],
+ "teachers": [
+  "rp_0526_fp32",
+  "shtech/SZU0526_fp32"
+ ],
+ "config": {
+  "expand": 1.5,
+  "min_roi_side": 8,
+  "conf": 0.25,
+  "max_det": 20,
+  "min_refine_plate_w": 24.0,
+  "refine_thresholds_base": [
+   80,
+   100,
+   120,
+   140,
+   160,
+   180,
+   200
+  ],
+  "refine_thresholds_extra": [
+   20,
+   40,
+   60,
+   220,
+   240
+  ],
+  "agree_iou": 0.85,
+  "agree_kpt_pct": 0.05,
+  "consensus": "mean",
+  "teachers": [
+   "rp_0526_fp32",
+   "shtech/SZU0526_fp32"
+  ]
+ },
+ "class_mode": "single",
+ "kpt_order": [
+  "LT",
+  "LB",
+  "RB",
+  "RT"
+ ],
+ "n_obj": 2,
+ "n_review": 2,
+ "objects": [
+  {
+   "flags": [
+    "agree",
+    "refine_failed",
+    "no_bar_pair"
+   ],
+   "color": 2,
+   "num": 2,
+   "color_name": "P",
+   "num_name": "2",
+   "pcolor": 0.99869304895401,
+   "pnum": 0.9982170462608337,
+   "score_primary": 0.9313,
+   "score_secondary": 0.8327,
+   "plate_w": 78.91,
+   "bar_len": 34.46,
+   "primary": {
+    "model": "rp_0526_fp32",
+    "score": 0.9313,
+    "color": 2,
+    "color_name": "P",
+    "num": 2,
+    "num_name": "2",
+    "pcolor": 0.9987,
+    "pnum": 0.9982,
+    "quad": [
+     [
+      282.93,
+      405.01
+     ],
+     [
+      288.0,
+      439.2
+     ],
+     [
+      367.13,
+      430.96
+     ],
+     [
+      361.8,
+      397.99
+     ]
+    ],
+    "box": [
+     282.93,
+     397.99,
+     367.13,
+     439.2
+    ]
+   },
+   "secondary": {
+    "model": "shtech/SZU0526_fp32",
+    "score": 0.8327,
+    "color": 2,
+    "color_name": "P",
+    "num": 2,
+    "num_name": "2",
+    "pcolor": 0.9983,
+    "pnum": 0.9984,
+    "quad": [
+     [
+      282.98,
+      403.62
+     ],
+     [
+      288.38,
+      438.9
+     ],
+     [
+      366.75,
+      431.46
+     ],
+     [
+      360.94,
+      397.76
+     ]
+    ],
+    "box": [
+     282.98,
+     397.76,
+     366.75,
+     438.9
+    ]
+   },
+   "source": "teacher",
+   "reason": "no_bar_pair",
+   "refine": {
+    "expand": 1.5,
+    "roi": [
+     261,
+     387,
+     388,
+     450
+    ],
+    "roi_wh_px": [
+     127,
+     63
+    ],
+    "plate_w_coarse": 78.91,
+    "accepted": false,
+    "reason": "无满足距离/几何门限的灯条对",
+    "accept": 19.7,
+    "stage": "base+extra"
+   },
+   "quad_final_px": [
+    [
+     282.95,
+     404.31
+    ],
+    [
+     288.19,
+     439.05
+    ],
+    [
+     366.94,
+     431.21
+    ],
+    [
+     361.37,
+     397.88
+    ]
+   ],
+   "quad_coarse_px": [
+    [
+     282.95,
+     404.31
+    ],
+    [
+     288.19,
+     439.05
+    ],
+    [
+     366.94,
+     431.21
+    ],
+    [
+     361.37,
+     397.88
+    ]
+   ],
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "review": true,
+   "iou_two_teachers": 0.9589,
+   "kpt_diff_px": 0.846,
+   "kpt_diff_pct": 1.07,
+   "d_secondary_px": 0.846
+  },
+  {
+   "flags": [
+    "no_match",
+    "secondary_only",
+    "refine_skipped",
+    "plate_too_small"
+   ],
+   "color": 0,
+   "num": 0,
+   "color_name": "B",
+   "num_name": "7",
+   "pcolor": 0.9988940358161926,
+   "pnum": 0.5922644138336182,
+   "score_primary": null,
+   "score_secondary": 0.3321,
+   "plate_w": 19.55,
+   "bar_len": 7.92,
+   "primary": null,
+   "secondary": {
+    "model": "shtech/SZU0526_fp32",
+    "score": 0.3321,
+    "color": 0,
+    "color_name": "B",
+    "num": 0,
+    "num_name": "7",
+    "pcolor": 0.9989,
+    "pnum": 0.5923,
+    "quad": [
+     [
+      416.14,
+      228.43
+     ],
+     [
+      415.44,
+      236.28
+     ],
+     [
+      434.95,
+      235.28
+     ],
+     [
+      435.67,
+      227.35
+     ]
+    ],
+    "box": [
+     415.44,
+     227.35,
+     435.67,
+     236.28
+    ]
+   },
+   "source": "teacher",
+   "reason": "plate_too_small",
+   "refine": {
+    "expand": 1.5,
+    "plate_w_coarse": 19.55,
+    "skipped": true,
+    "accepted": false,
+    "reason": "plate_too_small"
+   },
+   "quad_final_px": [
+    [
+     416.14,
+     228.43
+    ],
+    [
+     415.44,
+     236.28
+    ],
+    [
+     434.95,
+     235.28
+    ],
+    [
+     435.67,
+     227.35
+    ]
+   ],
+   "quad_coarse_px": [
+    [
+     416.14,
+     228.43
+    ],
+    [
+     415.44,
+     236.28
+    ],
+    [
+     434.95,
+     235.28
+    ],
+    [
+     435.67,
+     227.35
+    ]
+   ],
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "review": true
+  }
+ ]
+}

@@ -1,0 +1,228 @@
+{
+ "key": "6068",
+ "image": "6068.jpg",
+ "rel": "6068.jpg",
+ "path": "/home/wpie/ArmorDataset/RawPic/SUM/6068.jpg",
+ "size": [
+  1024,
+  1280
+ ],
+ "teachers": [
+  "rp_0526_fp32",
+  "shtech/SZU0526_fp32"
+ ],
+ "config": {
+  "expand": 1.5,
+  "min_roi_side": 8,
+  "conf": 0.25,
+  "max_det": 20,
+  "min_refine_plate_w": 24.0,
+  "refine_thresholds_base": [
+   80,
+   100,
+   120,
+   140,
+   160,
+   180,
+   200
+  ],
+  "refine_thresholds_extra": [
+   20,
+   40,
+   60,
+   220,
+   240
+  ],
+  "agree_iou": 0.85,
+  "agree_kpt_pct": 0.05,
+  "consensus": "mean",
+  "teachers": [
+   "rp_0526_fp32",
+   "shtech/SZU0526_fp32"
+  ]
+ },
+ "class_mode": "single",
+ "kpt_order": [
+  "LT",
+  "LB",
+  "RB",
+  "RT"
+ ],
+ "n_obj": 1,
+ "n_review": 0,
+ "objects": [
+  {
+   "flags": [
+    "agree",
+    "refine_ok"
+   ],
+   "color": 0,
+   "num": 3,
+   "color_name": "B",
+   "num_name": "3",
+   "pcolor": 0.9998469352722168,
+   "pnum": 0.9982767105102539,
+   "score_primary": 0.7686,
+   "score_secondary": 0.7692,
+   "plate_w": 321.05,
+   "bar_len": 132.27,
+   "primary": {
+    "model": "rp_0526_fp32",
+    "score": 0.7686,
+    "color": 0,
+    "color_name": "B",
+    "num": 3,
+    "num_name": "3",
+    "pcolor": 0.9998,
+    "pnum": 0.9983,
+    "quad": [
+     [
+      448.76,
+      609.52
+     ],
+     [
+      436.11,
+      735.77
+     ],
+     [
+      753.31,
+      787.58
+     ],
+     [
+      766.82,
+      650.59
+     ]
+    ],
+    "box": [
+     436.11,
+     609.52,
+     766.82,
+     787.58
+    ]
+   },
+   "secondary": {
+    "model": "shtech/SZU0526_fp32",
+    "score": 0.7692,
+    "color": 0,
+    "color_name": "B",
+    "num": 3,
+    "num_name": "3",
+    "pcolor": 0.9998,
+    "pnum": 0.9983,
+    "quad": [
+     [
+      448.78,
+      609.49
+     ],
+     [
+      436.13,
+      735.76
+     ],
+     [
+      753.31,
+      787.58
+     ],
+     [
+      766.83,
+      650.58
+     ]
+    ],
+    "box": [
+     436.13,
+     609.49,
+     766.83,
+     787.58
+    ]
+   },
+   "source": "refine",
+   "reason": null,
+   "refine": {
+    "expand": 1.5,
+    "roi": [
+     353,
+     564,
+     850,
+     833
+    ],
+    "roi_wh_px": [
+     497,
+     269
+    ],
+    "plate_w_coarse": 321.05,
+    "accepted": true,
+    "thr": 180,
+    "dist": 11.69,
+    "accept": 80.2,
+    "armor_ratio": 2.26,
+    "side_ratio": 1.15,
+    "armor_ok": true,
+    "stage": "base",
+    "iou_vs_coarse": 0.969,
+    "plate_w_refine": 318.36,
+    "plate_w_ratio": 0.992,
+    "d_coarse_to_refine_px": 2.92,
+    "d_coarse_to_refine_pct": 0.91
+   },
+   "quad_final_px": [
+    [
+     447.91,
+     610.99
+    ],
+    [
+     440.73,
+     733.04
+    ],
+    [
+     753.86,
+     787.84
+    ],
+    [
+     764.68,
+     647.21
+    ]
+   ],
+   "quad_coarse_px": [
+    [
+     448.77,
+     609.5
+    ],
+    [
+     436.12,
+     735.77
+    ],
+    [
+     753.31,
+     787.58
+    ],
+    [
+     766.83,
+     650.59
+    ]
+   ],
+   "norm_size": [
+    1280.0,
+    1024.0
+   ],
+   "review": false,
+   "iou_two_teachers": 0.9997,
+   "kpt_diff_px": 0.019,
+   "kpt_diff_pct": 0.01,
+   "d_secondary_px": 0.019
+  }
+ ],
+ "removed_annotations": [
+  {
+   "time": "2026-09-17 18:12:15",
+   "by": "cli",
+   "reason": "一号/大基地装甲板外观改版，待重新标注",
+   "nums": [
+    1,
+    8
+   ],
+   "n_removed": 1,
+   "classes": {
+    "B1": 1
+   }
+  }
+ ]
+}

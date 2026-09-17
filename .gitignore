@@ -1,0 +1,56 @@
+# ============================================================
+# 装甲板自动标注工程 —— Git 忽略规则
+# 原则：只版本化「代码 + 标注信息」，排除图片与大体积二进制
+# ============================================================
+
+# ---------- 图片 / 视频（本次明确要求排除） ----------
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.webp
+*.gif
+*.tif
+*.tiff
+*.mp4
+*.avi
+*.mov
+*.mkv
+RawPic/
+BaseLine/
+Test/figures/
+AutoLabel/figures/
+AutoLabel/backup/
+
+# ---------- 大体积模型权重（含子目录；如需版本化模型，删掉下面几行即可） ----------
+*.onnx
+*.bin
+*.engine
+*.trt
+*.pt
+# 注：Weights/ 下的文本清单（requirements.lock.txt、HASHES.txt）不受影响，会照常纳入版本管理
+
+# ---------- 派生产物 / 缓存 / 日志 ----------
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+third_party/
+TrainSet*/
+AutoLabel_*/
+webui/state/
+AutoLabel/progress*.jsonl
+AutoLabel/webui_job.log
+AutoLabel/errors.log
+Test/*.pdf
+Test/*.aux
+Test/*.log
+Test/*.out
+Test/*.toc
+
+# ---------- 工具/编辑器本地数据 ----------
+.codebuddy/
+.idea/
+*.swp
+*~

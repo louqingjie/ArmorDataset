@@ -40,12 +40,15 @@ MIME = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
 MAX_BODY = 2 * 1024 * 1024
 
 
-def route(method, pattern):
-    """注册路由：pattern 为正则（严格匹配），处理器接收 Ctx 并返回 dict 或响应元组。"""
+def route(method, pattern, local_only=False):
+    """注册路由：pattern 为正则（严格匹配），处理器接收 Ctx 并返回 dict 或响应元组。
+
+    local_only=True 的接口仅允许本机直连调用（经公网隧道访问返回 403）。
+    """
     rx = re.compile("^" + pattern + "$")
 
     def deco(fn):
-        ROUTES.append((method.upper(), rx, fn))
+        ROUTES.append((method.upper(), rx, fn, local_only))
         return fn
 
     return deco
@@ -65,8 +68,8 @@ route("GET", r"/api/task")(api.api_task)
 route("POST", r"/api/save")(api.api_save)
 route("POST", r"/api/restore")(api.api_restore)
 route("GET", r"/api/backups")(api.api_backups)
-route("POST", r"/api/job/start")(api.api_job_start)
-route("POST", r"/api/job/stop")(api.api_job_stop)
+route("POST", r"/api/job/start", local_only=True)(api.api_job_start)   # GPU 流水线：仅本机可启动
+route("POST", r"/api/job/stop", local_only=True)(api.api_job_stop)
 route("GET", r"/api/job/status")(api.api_job_status)
 route("GET", r"/api/job/log")(api.api_job_log)
 route("POST", r"/api/deprecate")(api.api_deprecate)
@@ -80,12 +83,13 @@ route("GET", r"/api/export/status")(api.api_export_status)
 class Ctx:
     """请求上下文：查询参数、JSON body 与便捷取值方法。"""
 
-    def __init__(self, query, body, method, path, server_port):
+    def __init__(self, query, body, method, path, server_port, local=True):
         self.query = {k: v[0] for k, v in query.items()}
         self.body = body or {}
         self.method = method
         self.path = path
         self.server_port = server_port
+        self.local = local              # False = 请求经公网隧道转发而来
 
     def q(self, name, default=None):
         v = self.query.get(name)
@@ -160,6 +164,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._handle("POST")
 
+    def _is_local_request(self):
+        """本机直连判定：Cloudflare 隧道转发时会强制附加下列代理头，公网请求无法去除；
+        本机浏览器直连 127.0.0.1:8765 则不带这些头。"""
+        for h in ("CF-Connecting-IP", "CF-Ray", "X-Forwarded-For", "X-Forwarded-Proto"):
+            if self.headers.get(h):
+                return False
+        return True
+
     def _read_body(self):
         try:
             n = int(self.headers.get("Content-Length") or 0)
@@ -188,11 +200,16 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path.startswith("/api/"):
                 body = self._read_body() if method == "POST" else {}
-                ctx = Ctx(query, body, method, path, self.server.server_port)
-                for m, rx, fn in ROUTES:
+                local = self._is_local_request()
+                ctx = Ctx(query, body, method, path, self.server.server_port, local)
+                for m, rx, fn, local_only in ROUTES:
                     if m != method:
                         continue
                     if rx.match(path):
+                        if local_only and not local:
+                            LOG.warning("拒绝公网受限调用 %s %s (CF-Connecting-IP=%s)",
+                                        method, path, self.headers.get("CF-Connecting-IP"))
+                            raise api.ApiError("该操作仅限本机执行；公网访问已禁用任务启动/停止", 403)
                         return self._respond(fn(ctx))
                 raise api.ApiError("未知接口: %s" % path, 404)
             return self._respond(self._static(path))        # 静态资源同样要写出响应

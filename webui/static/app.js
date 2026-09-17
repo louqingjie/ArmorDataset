@@ -116,10 +116,13 @@ async function refreshStatus() {
   const badge = $('jobBadge');
   badge.textContent = running ? '运行中' : ({ idle: '空闲', done: '已完成', error: '失败', stopped: '已停止' }[job.status] || job.status);
   badge.dataset.state = running ? 'running' : (job.status || 'idle');
-  $('btnStart').disabled = running;
-  $('btnResume').disabled = running;
-  $('btnStop').disabled = !running;
-  $('btnStatsOnly').disabled = running;
+  const local = st.local !== false;                 // 公网隧道访问时仅允许核对数据
+  $('btnStart').disabled = running || !local;
+  $('btnResume').disabled = running || !local;
+  $('btnStop').disabled = !running || !local;
+  $('btnStatsOnly').disabled = running || !local;
+  const localHint = $('jobLocalHint');
+  if (localHint) localHint.hidden = local;
 
   const p = job.progress || {};
   const bar = $('jobBar');

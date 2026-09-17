@@ -39,6 +39,13 @@ def yolo_line(obj, img_w, img_h, mode=C.CLASS_MODE):
 
 
 def needs_review(obj):
+    """是否需要人工复核；被废弃的目标（如大装甲）不再进复核队列。"""
+    if obj.get("deprecated"):
+        return False
+    return _needs_review_flags(obj)
+
+
+def _needs_review_flags(obj):
     """是否需要人工复核（冲突/单侧检出/精修失败/极小目标）。"""
     return any(any(f.startswith(p) for p in REVIEW_FLAG_PREFIXES) for f in obj["flags"])
 
@@ -135,7 +142,7 @@ def review_rows(out_dir):
     for p in sorted(meta_dir.rglob("*.json")):
         meta = json.loads(p.read_text(encoding="utf-8"))
         for i, o in enumerate(meta["objects"]):
-            if not o.get("review"):
+            if not o.get("review") or o.get("deprecated"):
                 continue
             rows.append({
                 "image": meta.get("key", meta["image"]), "obj": i, "source": o.get("source"),

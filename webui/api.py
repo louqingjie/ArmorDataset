@@ -170,6 +170,8 @@ def _entry_from_meta(meta: dict, mtime: float, dep_info=None):
     score = 0.0
     reasons = []
     for o in objs:
+        if o.get("deprecated"):
+            continue          # 废弃目标不参与 flags/优先级/统计（仅计入 dep_objs）
         oflags = o.get("flags", []) or []
         for f in oflags:
             flags[f] += 1
@@ -194,6 +196,7 @@ def _entry_from_meta(meta: dict, mtime: float, dep_info=None):
                 review_kinds["tiny"] += 1
             else:
                 review_kinds["refine_failed"] += 1
+    n_dep_obj = sum(1 for o in objs if o.get("deprecated"))
     prio = 9
     for f in flags:
         prio = min(prio, PRIORITY.get(f, 9))
@@ -210,7 +213,10 @@ def _entry_from_meta(meta: dict, mtime: float, dep_info=None):
         "pairs": dict(pairs),                      # 颜色×编号 组合（用于导出时交错均衡排序）
         "shift_pct": round(sum(shifts) / len(shifts), 3) if shifts else None,
         "mtime": round(mtime, 3),
-        # 废弃标记（来自 out/deprecated.json，权威表；被废弃的图不参与训练集导出）
+        # 目标级废弃（meta 里 objects[*].deprecated，如大装甲）：标注保留、不参与训练导出
+        "dep_objs": n_dep_obj,
+        "n_usable": len(objs) - n_dep_obj,
+        # 图级废弃（来自 out/deprecated.json，权威表；整图不参与训练集导出）
         "deprecated": bool(dep_info),
         "dep_by": (dep_info or {}).get("by"),
         "dep_time": (dep_info or {}).get("time"),
@@ -359,9 +365,13 @@ class OutIndex:
         n_dep = sum(1 for e in self.entries.values() if e.get("deprecated"))
         cnt["deprecated"] = n_dep
         cnt["active"] = len(self.entries) - n_dep
+        cnt["obj_deprecated"] = sum(1 for e in self.entries.values() if (e.get("dep_objs") or 0) > 0)
+        cnt["all_deprecated"] = sum(1 for e in self.entries.values()
+                                    if e["n_obj"] > 0 and (e.get("n_usable") or 0) == 0)
         out = {k: int(cnt.get(k, 0)) for k in
                ("all", "review", "reviewed", "edited", "background", "agree", "conflict",
-                "no_match", "refine_failed", "refine_skipped", "tiny", "deprecated", "active")}
+                "no_match", "refine_failed", "refine_skipped", "tiny", "deprecated", "active",
+                "obj_deprecated", "all_deprecated")}
         for nm in ("B", "LB"):            # 编号维度：含该类目标的图片数
             out["num_" + nm] = sum(1 for e in self.entries.values()
                                    if (e.get("nums") or {}).get(nm, 0) > 0)
@@ -381,6 +391,10 @@ def _match_filter(e, flt):
         return bool(e.get("deprecated"))
     if flt == "active":
         return not e.get("deprecated")
+    if flt == "obj_deprecated":
+        return (e.get("dep_objs") or 0) > 0
+    if flt == "all_deprecated":
+        return e["n_obj"] > 0 and (e.get("n_usable") or 0) == 0
     if flt.startswith("num_"):
         return (e.get("nums") or {}).get(flt[4:], 0) > 0      # 按编号名筛选（如 num_LB / num_B）
     return flt in e["flags"]
@@ -721,6 +735,8 @@ def api_stats(ctx):
             "stats": get_stats(out, force=ctx.qb("force", False)),
             "index": {"n": len(entries), "building": idx.building,
                       "deprecated": sum(1 for e in entries if e.get("deprecated")),
+                      "dep_objects": sum(e.get("dep_objs") or 0 for e in entries),
+                      "usable_objects": sum(e.get("n_usable") or 0 for e in entries),
                       "reviewed": sum(1 for e in entries if e.get("reviewed")),
                       "edited": sum(1 for e in entries if e.get("edited")),
                       "hist": {

@@ -154,7 +154,8 @@ def _select(out_dir: Path, opts):
     include_dep = bool(opts.get("include_deprecated"))
     cand = []
     for e in idx.entries.values():
-        if e["n_obj"] == 0:
+        if e["n_obj"] == 0 or (e.get("n_usable") or 0) == 0:
+            # 无目标、或目标全部被废弃（如大装甲）→ 按背景图处理，默认不导出
             if include_bg and flt in ("all", "high"):
                 cand.append(e)
             continue
@@ -223,7 +224,7 @@ def preflight(payload):
     if obj_filter not in OBJ_FILTERS:
         raise api.ApiError("未知对象过滤: %s" % obj_filter)
 
-    n_obj, n_review_obj, n_bg = 0, 0, 0
+    n_obj, n_review_obj, n_bg, n_dep_obj = 0, 0, 0, 0
     cls_cnt = {}
     cls_img = {}                      # 图片级计数（一张图对每个类别最多计 1 次）
     for e in kept:
@@ -237,6 +238,9 @@ def preflight(payload):
         objs = meta.get("objects") or []
         usable = []
         for o in objs:
+            if o.get("deprecated"):                 # 目标级废弃：标注保留但不参与训练
+                n_dep_obj += 1
+                continue
             if obj_filter == "drop_review" and o.get("review"):
                 n_review_obj += 1
                 continue
@@ -268,6 +272,7 @@ def preflight(payload):
             "n_deprecated_excluded": sel_info.get("n_deprecated_excluded", 0),
             "include_deprecated": sel_info.get("include_deprecated", False),
             "n_dropped_review_objects": n_review_obj,
+            "n_deprecated_objects_excluded": n_dep_obj,
             "n_images_without_usable_obj": n_bg,
             "n_train": len(kept) - n_val, "n_val": n_val,
             "class_dist": {class_names.get(int(k), k): v for k, v in
@@ -316,6 +321,7 @@ def _export_task(report, out_dir: Path, dest: Path, opts):
         (dest / sub).mkdir(parents=True, exist_ok=True)
 
     counts = {"train": {"images": 0, "objects": 0}, "val": {"images": 0, "objects": 0}}
+    n_dep_obj = 0
     skipped, errors = [], []
     total = max(1, len(kept))
     for i, e in enumerate(kept, 1):
@@ -325,6 +331,9 @@ def _export_task(report, out_dir: Path, dest: Path, opts):
             h, w = meta["size"]
             lines = []
             for o in meta.get("objects") or []:
+                if o.get("deprecated"):                  # 目标级废弃：不进标签
+                    n_dep_obj += 1
+                    continue
                 if obj_filter == "drop_review" and o.get("review"):
                     continue
                 lines.append(labelio.yolo_line(edits.to_internal(o, w, h), w, h, mode))
@@ -356,6 +365,7 @@ def _export_task(report, out_dir: Path, dest: Path, opts):
                "filter": opts.get("filter", "all"), "object_filter": obj_filter,
                "order": order, "cycle": cycle_pairs()[:12],
                "n_deprecated_excluded": sel_info.get("n_deprecated_excluded", 0),
+               "n_deprecated_objects_excluded": n_dep_obj,
                "image_mode": image_mode, "counts": counts,
                "skipped": skipped[:200], "n_skipped": len(skipped),
                "errors": errors[:200], "n_errors": len(errors),

@@ -32,14 +32,18 @@ def collect(out_dir):
     flag_cnt, reason_cnt, src_cnt = Counter(), Counter(), Counter()
     color_cnt, num_cnt = Counter(), Counter()
     plate_w, d_px, d_pct, d_sec, kpt_pct = [], [], [], [], []
-    n_obj = n_review = 0
-    imgs_no_det = 0
+    n_obj = n_review = n_dep_obj = 0
+    imgs_no_det = imgs_all_dep = 0
     for m in metas:
         if not m["objects"]:
             imgs_no_det += 1
+        elif not [o for o in m["objects"] if not o.get("deprecated")]:
+            imgs_all_dep += 1          # 目标全部废弃 → 等效背景图（不参与训练）
         for o in m["objects"]:
             n_obj += 1
-            n_review += int(bool(o.get("review")))
+            if o.get("deprecated"):
+                n_dep_obj += 1
+            n_review += int(bool(o.get("review")) and not o.get("deprecated"))
             for f in o.get("flags", []):
                 flag_cnt[f] += 1
             if o.get("reason"):
@@ -71,7 +75,9 @@ def collect(out_dir):
                    "with_labels": len(metas) - imgs_no_det},
         "objects": {"total": n_obj, "review": n_review,
                     "review_rate": round(n_review / n_obj, 4) if n_obj else 0.0,
-                    "per_image": round(n_obj / len(metas), 3) if metas else 0.0},
+                    "per_image": round(n_obj / len(metas), 3) if metas else 0.0,
+                    "deprecated": n_dep_obj, "usable": n_obj - n_dep_obj,
+                    "all_deprecated_images": imgs_all_dep},
         "source": dict(src_cnt),
         "refine_accept_rate": round(src_cnt["refine"] / max(1, src_cnt["refine"] + src_cnt["teacher"]), 4),
         "consistency": {
@@ -133,6 +139,10 @@ def to_markdown(stats):
              (100 * s["refine_accept_rate"], s["source"].get("refine", 0), s["source"].get("teacher", 0)))
     L.append("| 小目标跳过精修(板宽<%.0fpx) | %d |" %
              (s["config"].get("min_refine_plate_w", 0), s["flags"].get("refine_skipped", 0)))
+    ob = s.get("objects", {})
+    L.append("| 废弃目标(不参与训练) | %d（可用 %d） |" %
+             (ob.get("deprecated", 0), ob.get("usable", ob.get("total", 0))))
+    L.append("| 目标全部废弃的图 | %d（等同背景图） |" % ob.get("all_deprecated_images", 0))
     cons = s["consistency"]
     L.append("| 双教师一致率 | %.1f%%（agree=%d / conflict=%d，配对 %d） |" %
              (100 * cons["agree_rate_over_paired"], cons["agree"], cons["conflict"], cons["both_teachers_present"]))

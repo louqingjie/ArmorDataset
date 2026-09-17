@@ -111,7 +111,7 @@ function renderList(items) {
     row.innerHTML = `<span class="bar"></span>
       <span><div class="key">${escapeHtml(it.key)}</div>
       <div class="sub">${it.n_obj} 目标 · 板宽 ${fmt.num(it.plate_w)}px · ${it.sources.join('/')}</div></span>
-      <span>${it.deprecated ? '<span class="tag muted">废弃</span>' : ''}${badge}</span>`;
+      <span>${it.deprecated ? '<span class="tag muted">废弃</span>' : ''}${it.dep_objs ? `<span class="tag muted" title="含 ${it.dep_objs} 个已废弃目标（不参与训练）">弃${it.dep_objs}</span>` : ''}${badge}</span>`;
     row.onclick = () => selectKey(it.key);
     box.appendChild(row);
   });
@@ -365,11 +365,12 @@ function renderObjects(light) {
   R.objs.forEach((o, i) => {
     if (o.__deleted) return;
     const card = document.createElement('div');
-    card.className = 'obj-card' + (i === R.sel ? ' active' : '');
-    const tags = (o.flags || []).map((f) => {
-      const m = FLAG_META[f] || { label: f, cls: 'muted' };
-      return `<span class="tag ${m.cls}">${escapeHtml(m.label)}</span>`;
-    }).join('') + (o.__clearReview ? '<span class="tag ok">待确认</span>' : '');
+    card.className = 'obj-card' + (i === R.sel ? ' active' : '') + (o.deprecated ? ' deprecated' : '');
+    const tags = (o.deprecated ? '<span class="tag muted" title="已废弃：标注保留但不参与训练导出">废弃·不参与训练</span>' : '')
+      + (o.flags || []).map((f) => {
+        const m = FLAG_META[f] || { label: f, cls: 'muted' };
+        return `<span class="tag ${m.cls}">${escapeHtml(m.label)}</span>`;
+      }).join('') + (o.__clearReview ? '<span class="tag ok">待确认</span>' : '');
     card.innerHTML = `
       <div class="title"><span class="dot" style="background:${COLOR_BGR[o.color] || '#999'}"></span>
         <span>#${i} ${escapeHtml(o.color_name || '?')}${escapeHtml(o.num_name || '?')}</span>

@@ -49,12 +49,13 @@
   "RT"
  ],
  "n_obj": 2,
- "n_review": 1,
+ "n_review": 0,
  "objects": [
   {
    "flags": [
     "agree",
-    "refine_ok"
+    "refine_ok",
+    "reviewed"
    ],
    "color": 1,
    "num": 4,
@@ -64,8 +65,8 @@
    "pnum": 0.9999845027923584,
    "score_primary": 0.9536,
    "score_secondary": 0.9519,
-   "plate_w": 170.83,
-   "bar_len": 69.32,
+   "plate_w": 168.01,
+   "bar_len": 70.0,
    "primary": {
     "model": "rp_0526_fp32",
     "score": 0.9536,
@@ -163,6 +164,20 @@
     "d_coarse_to_refine_px": 1.61,
     "d_coarse_to_refine_pct": 0.94
    },
+   "norm_size": [
+    640.0,
+    480.0
+   ],
+   "iou_two_teachers": 0.9983,
+   "kpt_diff_px": 0.065,
+   "kpt_diff_pct": 0.04,
+   "d_secondary_px": 0.065,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 18:45:52",
+    "action": "update",
+    "clear_review": true
+   },
    "quad_final_px": [
     [
      198.5,
@@ -199,22 +214,13 @@
      331.87
     ]
    ],
-   "norm_size": [
-    640.0,
-    480.0
-   ],
-   "review": false,
-   "iou_two_teachers": 0.9983,
-   "kpt_diff_px": 0.065,
-   "kpt_diff_pct": 0.04,
-   "d_secondary_px": 0.065
+   "review": false
   },
   {
    "flags": [
-    "conflict",
-    "conflict_cls",
     "refine_skipped",
-    "plate_too_small"
+    "plate_too_small",
+    "reviewed"
    ],
    "color": 0,
    "num": 4,
@@ -295,13 +301,27 @@
     ]
    },
    "source": "teacher",
-   "reason": "plate_too_small",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "plate_w_coarse": 16.64,
     "skipped": true,
     "accepted": false,
     "reason": "plate_too_small"
+   },
+   "norm_size": [
+    640.0,
+    480.0
+   ],
+   "iou_two_teachers": 0.979,
+   "kpt_diff_px": 0.1,
+   "kpt_diff_pct": 0.6,
+   "d_secondary_px": 0.1,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 18:45:52",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -339,15 +359,31 @@
      464.49
     ]
    ],
-   "norm_size": [
-    640.0,
-    480.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.979,
-   "kpt_diff_px": 0.1,
-   "kpt_diff_pct": 0.6,
-   "d_secondary_px": 0.1
+   "review": false
+  }
+ ],
+ "review_edits": [
+  {
+   "reviewer": "webui",
+   "time": "2026-09-17 18:45:52",
+   "auto": true,
+   "n_edits": 2,
+   "edits": [
+    {
+     "action": "update",
+     "index": 0,
+     "time": "2026-09-17 18:45:52",
+     "reviewer": "webui",
+     "clear_review": true
+    },
+    {
+     "action": "update",
+     "index": 1,
+     "time": "2026-09-17 18:45:52",
+     "reviewer": "webui",
+     "clear_review": true
+    }
+   ]
   }
  ],
  "n_dep_obj": 0

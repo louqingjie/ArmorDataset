@@ -49,13 +49,13 @@
   "RT"
  ],
  "n_obj": 2,
- "n_review": 2,
+ "n_review": 0,
  "objects": [
   {
    "flags": [
     "agree",
-    "refine_failed",
-    "no_bar_pair"
+    "no_bar_pair",
+    "reviewed"
    ],
    "color": 2,
    "num": 2,
@@ -136,7 +136,7 @@
     ]
    },
    "source": "teacher",
-   "reason": "no_bar_pair",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "roi": [
@@ -154,6 +154,20 @@
     "reason": "无满足距离/几何门限的灯条对",
     "accept": 19.0,
     "stage": "base+extra"
+   },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.935,
+   "kpt_diff_px": 1.099,
+   "kpt_diff_pct": 1.45,
+   "d_secondary_px": 1.099,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:34:41",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -191,22 +205,13 @@
      397.21
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.935,
-   "kpt_diff_px": 1.099,
-   "kpt_diff_pct": 1.45,
-   "d_secondary_px": 1.099
+   "review": false
   },
   {
    "flags": [
-    "conflict",
-    "conflict_cls",
     "refine_skipped",
-    "plate_too_small"
+    "plate_too_small",
+    "reviewed"
    ],
    "color": 0,
    "num": 3,
@@ -287,13 +292,27 @@
     ]
    },
    "source": "teacher",
-   "reason": "plate_too_small",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "plate_w_coarse": 17.14,
     "skipped": true,
     "accepted": false,
     "reason": "plate_too_small"
+   },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.9357,
+   "kpt_diff_px": 0.399,
+   "kpt_diff_pct": 2.34,
+   "d_secondary_px": 0.399,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:34:41",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -331,15 +350,31 @@
      213.01
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.9357,
-   "kpt_diff_px": 0.399,
-   "kpt_diff_pct": 2.34,
-   "d_secondary_px": 0.399
+   "review": false
+  }
+ ],
+ "review_edits": [
+  {
+   "reviewer": "webui",
+   "time": "2026-09-17 21:34:41",
+   "auto": true,
+   "n_edits": 2,
+   "edits": [
+    {
+     "action": "update",
+     "index": 0,
+     "time": "2026-09-17 21:34:41",
+     "reviewer": "webui",
+     "clear_review": true
+    },
+    {
+     "action": "update",
+     "index": 1,
+     "time": "2026-09-17 21:34:41",
+     "reviewer": "webui",
+     "clear_review": true
+    }
+   ]
   }
  ],
  "n_dep_obj": 0

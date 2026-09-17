@@ -49,12 +49,13 @@
   "RT"
  ],
  "n_obj": 3,
- "n_review": 2,
+ "n_review": 0,
  "objects": [
   {
    "flags": [
     "agree",
-    "refine_ok"
+    "refine_ok",
+    "reviewed"
    ],
    "color": 1,
    "num": 6,
@@ -64,8 +65,8 @@
    "pnum": 0.9997202754020691,
    "score_primary": 0.9486,
    "score_secondary": 0.9155,
-   "plate_w": 105.23,
-   "bar_len": 46.71,
+   "plate_w": 102.42,
+   "bar_len": 42.87,
    "primary": {
     "model": "rp_0526_fp32",
     "score": 0.9486,
@@ -163,6 +164,20 @@
     "d_coarse_to_refine_px": 2.9,
     "d_coarse_to_refine_pct": 2.75
    },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.9655,
+   "kpt_diff_px": 1.204,
+   "kpt_diff_pct": 1.13,
+   "d_secondary_px": 1.204,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:33:11",
+    "action": "update",
+    "clear_review": true
+   },
    "quad_final_px": [
     [
      3.5,
@@ -199,24 +214,13 @@
      481.83
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": false,
-   "iou_two_teachers": 0.9655,
-   "kpt_diff_px": 1.204,
-   "kpt_diff_pct": 1.13,
-   "d_secondary_px": 1.204
+   "review": false
   },
   {
    "flags": [
-    "conflict",
-    "conflict_iou",
-    "conflict_kpt",
-    "conflict_cls",
     "refine_skipped",
-    "plate_too_small"
+    "plate_too_small",
+    "reviewed"
    ],
    "color": 0,
    "num": 2,
@@ -297,13 +301,27 @@
     ]
    },
    "source": "teacher",
-   "reason": "plate_too_small",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "plate_w_coarse": 12.78,
     "skipped": true,
     "accepted": false,
     "reason": "plate_too_small"
+   },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.7808,
+   "kpt_diff_px": 0.881,
+   "kpt_diff_pct": 6.99,
+   "d_secondary_px": 0.881,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:33:11",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -341,25 +359,13 @@
      520.04
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.7808,
-   "kpt_diff_px": 0.881,
-   "kpt_diff_pct": 6.99,
-   "d_secondary_px": 0.881
+   "review": false
   },
   {
    "flags": [
-    "conflict",
-    "conflict_iou",
-    "conflict_kpt",
-    "conflict_cls",
     "refine_skipped",
     "plate_too_small",
-    "tiny"
+    "reviewed"
    ],
    "color": 0,
    "num": 3,
@@ -369,8 +375,8 @@
    "pnum": 0.3786935806274414,
    "score_primary": 0.506,
    "score_secondary": 0.5447,
-   "plate_w": 10.4,
-   "bar_len": 6.11,
+   "plate_w": 10.41,
+   "bar_len": 6.12,
    "primary": {
     "model": "rp_0526_fp32",
     "score": 0.506,
@@ -440,13 +446,27 @@
     ]
    },
    "source": "teacher",
-   "reason": "plate_too_small",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "plate_w_coarse": 10.4,
     "skipped": true,
     "accepted": false,
     "reason": "plate_too_small"
+   },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.7818,
+   "kpt_diff_px": 0.735,
+   "kpt_diff_pct": 6.97,
+   "d_secondary_px": 0.735,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:33:11",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -484,30 +504,38 @@
      521.38
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.7818,
-   "kpt_diff_px": 0.735,
-   "kpt_diff_pct": 6.97,
-   "d_secondary_px": 0.735
+   "review": false
   }
  ],
- "removed_annotations": [
+ "review_edits": [
   {
-   "time": "2026-09-17 18:12:14",
-   "by": "cli",
-   "reason": "一号/大基地装甲板外观改版，待重新标注",
-   "nums": [
-    1,
-    8
-   ],
-   "n_removed": 1,
-   "classes": {
-    "B1": 1
-   }
+   "reviewer": "webui",
+   "time": "2026-09-17 21:33:11",
+   "auto": true,
+   "n_edits": 3,
+   "edits": [
+    {
+     "action": "update",
+     "index": 0,
+     "time": "2026-09-17 21:33:11",
+     "reviewer": "webui",
+     "clear_review": true
+    },
+    {
+     "action": "update",
+     "index": 1,
+     "time": "2026-09-17 21:33:11",
+     "reviewer": "webui",
+     "clear_review": true
+    },
+    {
+     "action": "update",
+     "index": 2,
+     "time": "2026-09-17 21:33:11",
+     "reviewer": "webui",
+     "clear_review": true
+    }
+   ]
   }
  ],
  "n_dep_obj": 0

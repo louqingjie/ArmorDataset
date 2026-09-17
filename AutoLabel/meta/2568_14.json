@@ -49,12 +49,13 @@
   "RT"
  ],
  "n_obj": 2,
- "n_review": 1,
+ "n_review": 0,
  "objects": [
   {
    "flags": [
     "agree",
-    "refine_ok"
+    "refine_ok",
+    "reviewed"
    ],
    "color": 1,
    "num": 4,
@@ -64,8 +65,8 @@
    "pnum": 0.9996115565299988,
    "score_primary": 0.9527,
    "score_secondary": 0.9354,
-   "plate_w": 86.25,
-   "bar_len": 37.77,
+   "plate_w": 85.51,
+   "bar_len": 36.13,
    "primary": {
     "model": "rp_0526_fp32",
     "score": 0.9527,
@@ -163,6 +164,20 @@
     "d_coarse_to_refine_px": 1.53,
     "d_coarse_to_refine_pct": 1.77
    },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.9818,
+   "kpt_diff_px": 0.403,
+   "kpt_diff_pct": 0.47,
+   "d_secondary_px": 0.403,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:34:22",
+    "action": "update",
+    "clear_review": true
+   },
    "quad_final_px": [
     [
      65.5,
@@ -199,22 +214,12 @@
      490.54
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": false,
-   "iou_two_teachers": 0.9818,
-   "kpt_diff_px": 0.403,
-   "kpt_diff_pct": 0.47,
-   "d_secondary_px": 0.403
+   "review": false
   },
   {
    "flags": [
-    "conflict",
-    "conflict_kpt",
-    "refine_failed",
-    "no_bar_pair"
+    "no_bar_pair",
+    "reviewed"
    ],
    "color": 1,
    "num": 4,
@@ -295,7 +300,7 @@
     ]
    },
    "source": "teacher",
-   "reason": "no_bar_pair",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "roi": [
@@ -313,6 +318,20 @@
     "reason": "无满足距离/几何门限的灯条对",
     "accept": 15.0,
     "stage": "base+extra"
+   },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.8857,
+   "kpt_diff_px": 1.654,
+   "kpt_diff_pct": 5.27,
+   "d_secondary_px": 1.654,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:34:22",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -350,30 +369,31 @@
      420.6
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.8857,
-   "kpt_diff_px": 1.654,
-   "kpt_diff_pct": 5.27,
-   "d_secondary_px": 1.654
+   "review": false
   }
  ],
- "removed_annotations": [
+ "review_edits": [
   {
-   "time": "2026-09-17 18:12:14",
-   "by": "cli",
-   "reason": "一号/大基地装甲板外观改版，待重新标注",
-   "nums": [
-    1,
-    8
-   ],
-   "n_removed": 1,
-   "classes": {
-    "B1": 1
-   }
+   "reviewer": "webui",
+   "time": "2026-09-17 21:34:22",
+   "auto": true,
+   "n_edits": 2,
+   "edits": [
+    {
+     "action": "update",
+     "index": 0,
+     "time": "2026-09-17 21:34:22",
+     "reviewer": "webui",
+     "clear_review": true
+    },
+    {
+     "action": "update",
+     "index": 1,
+     "time": "2026-09-17 21:34:22",
+     "reviewer": "webui",
+     "clear_review": true
+    }
+   ]
   }
  ],
  "n_dep_obj": 0

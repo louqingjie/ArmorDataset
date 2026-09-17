@@ -49,12 +49,13 @@
   "RT"
  ],
  "n_obj": 2,
- "n_review": 1,
+ "n_review": 0,
  "objects": [
   {
    "flags": [
     "agree",
-    "refine_ok"
+    "refine_ok",
+    "reviewed"
    ],
    "color": 1,
    "num": 6,
@@ -64,8 +65,8 @@
    "pnum": 0.9990941286087036,
    "score_primary": 0.9191,
    "score_secondary": 0.8966,
-   "plate_w": 90.95,
-   "bar_len": 44.85,
+   "plate_w": 90.67,
+   "bar_len": 44.58,
    "primary": {
     "model": "rp_0526_fp32",
     "score": 0.9191,
@@ -163,6 +164,20 @@
     "d_coarse_to_refine_px": 1.7,
     "d_coarse_to_refine_pct": 1.87
    },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.968,
+   "kpt_diff_px": 0.934,
+   "kpt_diff_pct": 1.03,
+   "d_secondary_px": 0.934,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:34:19",
+    "action": "update",
+    "clear_review": true
+   },
    "quad_final_px": [
     [
      45.95,
@@ -199,22 +214,13 @@
      474.09
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": false,
-   "iou_two_teachers": 0.968,
-   "kpt_diff_px": 0.934,
-   "kpt_diff_pct": 1.03,
-   "d_secondary_px": 0.934
+   "review": false
   },
   {
    "flags": [
-    "conflict",
-    "conflict_cls",
     "refine_skipped",
-    "plate_too_small"
+    "plate_too_small",
+    "reviewed"
    ],
    "color": 0,
    "num": 4,
@@ -295,13 +301,27 @@
     ]
    },
    "source": "teacher",
-   "reason": "plate_too_small",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "plate_w_coarse": 21.67,
     "skipped": true,
     "accepted": false,
     "reason": "plate_too_small"
+   },
+   "norm_size": [
+    640.0,
+    640.0
+   ],
+   "iou_two_teachers": 0.8841,
+   "kpt_diff_px": 0.682,
+   "kpt_diff_pct": 3.17,
+   "d_secondary_px": 0.682,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:34:19",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -339,30 +359,31 @@
      545.74
     ]
    ],
-   "norm_size": [
-    640.0,
-    640.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.8841,
-   "kpt_diff_px": 0.682,
-   "kpt_diff_pct": 3.17,
-   "d_secondary_px": 0.682
+   "review": false
   }
  ],
- "removed_annotations": [
+ "review_edits": [
   {
-   "time": "2026-09-17 18:12:14",
-   "by": "cli",
-   "reason": "一号/大基地装甲板外观改版，待重新标注",
-   "nums": [
-    1,
-    8
-   ],
-   "n_removed": 1,
-   "classes": {
-    "B1": 1
-   }
+   "reviewer": "webui",
+   "time": "2026-09-17 21:34:19",
+   "auto": true,
+   "n_edits": 2,
+   "edits": [
+    {
+     "action": "update",
+     "index": 0,
+     "time": "2026-09-17 21:34:19",
+     "reviewer": "webui",
+     "clear_review": true
+    },
+    {
+     "action": "update",
+     "index": 1,
+     "time": "2026-09-17 21:34:19",
+     "reviewer": "webui",
+     "clear_review": true
+    }
+   ]
   }
  ],
  "n_dep_obj": 0

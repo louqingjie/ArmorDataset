@@ -49,15 +49,12 @@
   "RT"
  ],
  "n_obj": 1,
- "n_review": 1,
+ "n_review": 0,
  "objects": [
   {
    "flags": [
-    "conflict",
-    "conflict_iou",
-    "conflict_kpt",
-    "refine_failed",
-    "no_bar_pair"
+    "no_bar_pair",
+    "reviewed"
    ],
    "color": 1,
    "num": 3,
@@ -68,7 +65,7 @@
    "score_primary": 0.3275,
    "score_secondary": 0.3521,
    "plate_w": 74.47,
-   "bar_len": 57.86,
+   "bar_len": 57.87,
    "primary": {
     "model": "rp_0526_fp32",
     "score": 0.3275,
@@ -138,7 +135,7 @@
     ]
    },
    "source": "teacher",
-   "reason": "no_bar_pair",
+   "reason": null,
    "refine": {
     "expand": 1.5,
     "roi": [
@@ -156,6 +153,20 @@
     "reason": "无满足距离/几何门限的灯条对",
     "accept": 18.5,
     "stage": "base+extra"
+   },
+   "norm_size": [
+    1280.0,
+    1024.0
+   ],
+   "iou_two_teachers": 0.8043,
+   "kpt_diff_px": 6.603,
+   "kpt_diff_pct": 8.51,
+   "d_secondary_px": 6.603,
+   "review_edit": {
+    "reviewer": "webui",
+    "time": "2026-09-17 21:34:59",
+    "action": "update",
+    "clear_review": true
    },
    "quad_final_px": [
     [
@@ -193,29 +204,76 @@
      956.75
     ]
    ],
-   "norm_size": [
-    1280.0,
-    1024.0
-   ],
-   "review": true,
-   "iou_two_teachers": 0.8043,
-   "kpt_diff_px": 6.603,
-   "kpt_diff_pct": 8.51,
-   "d_secondary_px": 6.603
+   "review": false
   }
  ],
- "removed_annotations": [
+ "review_edits": [
   {
-   "time": "2026-09-17 18:17:35",
-   "by": "cli",
-   "reason": "5号装甲板标注清除",
-   "nums": [
-    5
-   ],
-   "n_removed": 1,
-   "classes": {
-    "R5": 1
-   }
+   "reviewer": "webui",
+   "time": "2026-09-17 21:34:57",
+   "auto": true,
+   "n_edits": 1,
+   "edits": [
+    {
+     "action": "update",
+     "index": 0,
+     "time": "2026-09-17 21:34:57",
+     "reviewer": "webui",
+     "quad": {
+      "before_px": [
+       [
+        483.36,
+        945.8
+       ],
+       [
+        493.03,
+        1000.02
+       ],
+       [
+        566.3,
+        1016.59
+       ],
+       [
+        556.37,
+        956.75
+       ]
+      ],
+      "after_px": [
+       [
+        483.36,
+        945.8
+       ],
+       [
+        493.03,
+        1000.02
+       ],
+       [
+        566.3,
+        1016.59
+       ],
+       [
+        556.37,
+        956.75
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "reviewer": "webui",
+   "time": "2026-09-17 21:34:59",
+   "auto": true,
+   "n_edits": 1,
+   "edits": [
+    {
+     "action": "update",
+     "index": 0,
+     "time": "2026-09-17 21:34:59",
+     "reviewer": "webui",
+     "clear_review": true
+    }
+   ]
   }
  ],
  "n_dep_obj": 0

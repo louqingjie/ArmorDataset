@@ -106,6 +106,7 @@ export const FLAG_META = {
   reviewed:     { label: '已确认',     cls: 'ok' },
 };
 
-export const COLOR_BGR = { 0: '#3B82F6', 1: '#DC2626', 2: '#7C3AED', 3: '#9AA3AF' };
-export const COLOR_NAME = { 0: 'B 蓝', 1: 'R 红', 2: 'P 紫', 3: 'N 灰' };
+export const COLOR_BGR = { 0: '#3B82F6', 1: '#DC2626', 2: '#64748B', 3: '#A1A1AA' };
+// 索引 2 实测是"灰白·未点亮"装甲板（灯条不亮/极暗），并非紫色：见 color_audit.py
+export const COLOR_NAME = { 0: 'B 蓝', 1: 'R 红', 2: 'G 灰白·未点亮', 3: 'N 其他' };
 export const NUM_NAME = { 0: '7(哨兵)', 1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: 'O(前哨)', 7: 'B(基地)', 8: 'LB(大基地)' };

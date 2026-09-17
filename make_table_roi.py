@@ -167,7 +167,7 @@ def main():
             SCORE_MIN, AREA_MIN * 100, AREA_MAX * 100, ASPECT_MIN, ASPECT_MAX),
         "      3) 评判 ROI = 基准框按中心放大 %.1f 倍(宽x%.1f, 高x%.1f)后裁剪到图像范围内；格子里看不到框即表示该模型的检测落在 ROI 之外或该图无检出；" % (EXPAND, EXPAND, EXPAND),
         "      4) 已按评估口径仅保留 18 个检测类模型(裸权重 yolov5.bin 与 2 个 32x32 数字分类器已移除)；",
-        "      5) 左列 kind 为解码器类型；编号/颜色映射同总表 (0->7(哨兵) 6->O(前哨站) 7->B(基地)，B蓝 R红 P紫)。",
+        "      5) 左列 kind 为解码器类型；编号/颜色映射同总表 (0->7(哨兵) 6->O(前哨站) 7->B(基地)，B蓝 R红 G灰白(未点亮) N其他)。",
     ]
     for k, s in enumerate(notes):
         cv2.putText(table, s, (12, y + k * 21), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (60, 60, 60), 1, cv2.LINE_AA)

@@ -7,6 +7,8 @@ const R = {
   offset: 0, limit: 200, total: 0, items: [],
   key: null, meta: null, objs: [], reviewer: 'webui',
   sel: -1, selPt: -1, undo: [], dirty: false,
+  autosave: true, saveTimer: null, saving: false, savePromise: null,
+  saveQueued: false, lastSave: null, saveFail: 0,
   img: null, W: 0, H: 0, previewMax: 1600, imgLoading: false,
   showCoarse: true, showIdx: true,
   view: { scale: 1, ox: 0, oy: 0 },
@@ -56,6 +58,14 @@ function bindUi() {
   };
   $('rvUndo').onclick = undo;
   $('rvSave').onclick = save;
+  R.autosave = localStorage.getItem('rvAutosave') !== '0';
+  $('rvAutoSave').checked = R.autosave;
+  $('rvAutoSave').onchange = onAutosaveToggle;
+  updateAutoStatus();
+  window.addEventListener('beforeunload', onBeforeUnload);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushSave();      // 切标签页也落盘
+  });
   $('rvAcceptAll').onclick = () => acceptAll();
   if ($('rvBatch')) $('rvBatch').onclick = () => batchAccept(20);
   $('rvNext').onclick = () => step(1);
@@ -63,6 +73,7 @@ function bindUi() {
   $('rvDep').onclick = toggleDeprecate;
   $('rvBatchDep').onclick = () => batchDeprecate(20);
   $('rvRestore').onclick = restore;
+  $('rvRestore').title = '恢复该图最近一次备份（自动保存的快照也在其中）';
 
   const c = canvas();
   c.addEventListener('mousedown', onDown);
@@ -123,7 +134,11 @@ function markActive() {
 
 /* ------------------------------------------------------------------ 选中与加载 */
 async function selectKey(key) {
-  if (R.dirty && !confirm('当前图片有未保存改动，切换会丢失，继续？')) return;
+  if (key === R.key && R.meta) return;
+  if (R.dirty) {                       // 切换前先把改动落盘（自动保存的兜底）
+    const ok = await flushSave();
+    if (!ok && !confirm('自动保存未成功，切换将丢失这些改动，继续？')) return;
+  }
   R.key = key;
   markActive();
   try {
@@ -454,7 +469,7 @@ function deleteObj(i) {
   R.sel = -1; R.selPt = -1;
   R.dirty = true;
   renderObjects(); draw(); updateDirty();
-  toast('已标记删除 #' + i + '（保存后生效）', 'warn');
+  toast('已标记删除 #' + i + (R.autosave ? '（自动保存中…）' : '（Ctrl+S 保存后生效）'), 'warn');
 }
 
 function markBackground() {
@@ -464,7 +479,7 @@ function markBackground() {
   R.objs.forEach((o) => { o.__deleted = true; });
   R.__background = true; R.dirty = true;
   renderObjects(); draw(); updateDirty();
-  toast('已标记背景，记得保存', 'warn');
+  toast(R.autosave ? '已标记背景，自动保存中…' : '已标记背景，记得保存', 'warn');
 }
 
 function acceptAll() {
@@ -493,17 +508,72 @@ function undo() {
 
 function updateDirty() {
   const n = R.objs.reduce((acc, o) => acc + ((o.__quadChanged || o.__colorChanged || o.__numChanged || o.__clearReview || o.__deleted) ? 1 : 0), 0);
-  R.dirty = n > 0;
+  R.dirty = n > 0 || !!R.__background;
   $('rvDirty').textContent = R.dirty ? `未保存 ${n} 项` : '无改动';
   $('rvDirty').style.background = R.dirty ? '#FEF3C7' : '';
   $('rvDirty').style.color = R.dirty ? '#B45309' : '';
+  if (R.dirty) scheduleAutoSave();
+}
+
+/* ------------------------------------------------------------------ 自动保存 */
+/* 编辑后 debounce 落盘；切图/关页/切标签页时强制落盘（sendBeacon 兜底）。
+   后端增量更新复核清单，单次保存约 3ms，所以可以放心自动保存。        */
+const AUTOSAVE_MS = 1500;
+
+function clockStr() { return new Date().toLocaleTimeString('zh-CN', { hour12: false }); }
+
+function updateAutoStatus(state) {
+  const el = $('rvAutoStatus');
+  if (!el) return;
+  let text = '自动保存：开', bg = '', fg = '';
+  if (!R.autosave) { text = '自动保存：关'; bg = '#F3F4F6'; fg = '#6B7280'; }
+  else if (state === 'saving' || R.saving) { text = '保存中…'; bg = '#FEF3C7'; fg = '#B45309'; }
+  else if (R.saveTimer) { text = '待自动保存…'; bg = '#FEF3C7'; fg = '#B45309'; }
+  else if (R.saveFail) { text = `保存失败 ×${R.saveFail}（Ctrl+S 重试）`; bg = '#FEE2E2'; fg = '#B91C1C'; }
+  else if (R.lastSave) { text = `已自动保存 ${R.lastSave}`; bg = '#DCFCE7'; fg = '#15803D'; }
+  el.textContent = text; el.style.background = bg; el.style.color = fg;
+}
+
+function scheduleAutoSave(delay) {
+  if (!R.autosave || !R.dirty || R.saveFail >= 5) return;   // 连续失败则停手，等人干预
+  const ms = (delay || AUTOSAVE_MS) * Math.min(2 ** R.saveFail, 8);
+  clearTimeout(R.saveTimer);
+  R.saveTimer = setTimeout(() => { R.saveTimer = null; saveNow(true); }, ms);
+  updateAutoStatus();
+}
+
+function onAutosaveToggle() {
+  R.autosave = $('rvAutoSave').checked;
+  localStorage.setItem('rvAutosave', R.autosave ? '1' : '0');
+  if (R.autosave) { R.saveFail = 0; scheduleAutoSave(600); }
+  else { clearTimeout(R.saveTimer); R.saveTimer = null; }
+  updateAutoStatus();
+  toast(R.autosave ? '已开启自动保存（编辑后约 1.5s 落盘）' : '已关闭自动保存（Ctrl+S 手动保存）', 'warn');
+}
+
+async function flushSave() {
+  clearTimeout(R.saveTimer); R.saveTimer = null;
+  if (R.saving && R.savePromise) { try { await R.savePromise; } catch (e) { /* 内部已提示 */ } }
+  if (!R.dirty) return true;
+  return await saveNow(true);
+}
+
+function onBeforeUnload(e) {
+  if (!R.dirty) return;
+  const body = buildSaveBody(true);
+  if (!body) return;
+  if (navigator.sendBeacon
+      && navigator.sendBeacon('/api/save', new Blob([JSON.stringify(body)], { type: 'application/json' }))) {
+    R.dirty = false;                                    // 已尽力送达，无需拦截
+    return;
+  }
+  e.preventDefault(); e.returnValue = '';
 }
 
 /* ------------------------------------------------------------------ 保存 / 恢复 */
-async function save() { await saveNow(false); }
+async function save() { return saveNow(false); }
 
-async function saveNow(auto) {
-  if (!R.key) return;
+function buildSaveBody(auto) {
   const objects = [];
   R.objs.forEach((o, i) => {
     if (o.__deleted) { objects.push({ index: i, action: 'delete' }); return; }
@@ -514,29 +584,55 @@ async function saveNow(auto) {
     if (o.__clearReview) a.clear_review = true;
     if (Object.keys(a).length > 2) objects.push(a);
   });
-  if (!objects.length && !R.__background) {
+  if (!objects.length && !R.__background) return null;
+  return { out: R.out, key: R.key, reviewer: R.reviewer, auto: !!auto,
+           objects, background: !!R.__background };
+}
+
+function saveNow(auto) {
+  if (!R.key) return Promise.resolve(false);
+  if (R.saving) { R.saveQueued = true; return R.savePromise || Promise.resolve(false); }
+  if (auto && R.drag) { R.saveQueued = true; return Promise.resolve(false); }   // 拖动中不打断
+  const body = buildSaveBody(auto);
+  if (!body) {
     if (!auto) toast('没有需要保存的改动', 'warn');
-    return;
+    return Promise.resolve(true);
   }
-  try {
-    const r = await post('/api/save', {
-      out: R.out, key: R.key, reviewer: R.reviewer, objects, background: !!R.__background,
-    });
-    R.meta = r.meta;
-    R.objs = (r.meta.objects || []).map((o) => ({ ...o }));
-    R.__background = false;
-    R.dirty = false; R.undo = [];
-    renderObjects(); draw(); updateDirty(); renderMetaInfo();
-    toast('已保存并备份 → ' + (r.backup?.dir || ''), 'ok', 3200);
-    refreshReviewBadge();
-    const row = document.querySelector(`.list-row[data-key="${cssEscape(R.key)}"]`);
-    if (row) {
-      const n = r.meta.n_review;
-      row.querySelector('span:last-child').innerHTML = n ? `<span class="tag danger">${n}</span>` : '<span class="tag ok">已确认</span>';
+  R.saving = true;
+  updateAutoStatus('saving');
+  R.savePromise = (async () => {
+    try {
+      const r = await post('/api/save', body);
+      R.meta = r.meta;
+      R.__background = false;
+      R.lastSave = clockStr(); R.saveFail = 0;
+      if (R.drag) {
+        R.saveQueued = true;                 // 拖动中：等本轮结束再刷新视图
+      } else {
+        R.objs = (r.meta.objects || []).map((o) => ({ ...o }));
+        R.dirty = false;
+        if (!auto) R.undo = [];              // 自动保存保留撤销栈，仍可 Ctrl+Z 回退
+      }
+      if (!auto) toast('已保存并备份 → ' + (r.backup?.dir || ''), 'ok', 3200);
+      if (!R.drag) { renderObjects(); draw(); updateDirty(); renderMetaInfo(); }
+      refreshReviewBadge();
+      const row = document.querySelector(`.list-row[data-key="${cssEscape(R.key)}"]`);
+      if (row) {
+        const n = r.meta.n_review;
+        row.querySelector('span:last-child').innerHTML = n ? `<span class="tag danger">${n}</span>` : '<span class="tag ok">已确认</span>';
+      }
+      return true;
+    } catch (e) {
+      R.saveFail += 1;
+      toast('保存失败：' + e.message + (auto ? '（改动已保留，可 Ctrl+S 重试）' : ''), 'error', 6000);
+      return false;
+    } finally {
+      R.saving = false; R.savePromise = null;
+      updateDirty(); updateAutoStatus();
+      if (R.saveQueued) { R.saveQueued = false; scheduleAutoSave(400); }
     }
-  } catch (e) {
-    toast('保存失败：' + e.message, 'error', 6000);
-  }
+  })();
+  return R.savePromise;
 }
 
 function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
@@ -544,6 +640,7 @@ function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 async function restore() {
   if (!R.key) return;
   if (!confirm('恢复该图最近一次备份（当前内容会先备份）？')) return;
+  await flushSave();                     // 未保存的改动先落盘，避免被恢复覆盖
   try {
     const r = await post('/api/restore', { out: R.out, key: R.key });
     R.meta = r.meta;

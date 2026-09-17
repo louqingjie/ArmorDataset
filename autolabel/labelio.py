@@ -60,6 +60,12 @@ def object_meta(obj, img_w, img_h):
     out["quad_coarse_px"] = [[round(float(p[0]), 2), round(float(p[1]), 2)] for p in obj["quad_coarse"]]
     out["norm_size"] = [round(float(img_w), 1), round(float(img_h), 1)]
     out["review"] = needs_review(obj)
+    # 颜色/编号名称以映射表为准（索引才是权威值），避免历史 meta 里的旧名称被原样带出
+    import make_table as _MT
+    if out.get("color") in _MT.COLOR_NAMES:
+        out["color_name"] = _MT.COLOR_NAMES[out["color"]]
+    if out.get("num") in _MT.NUM_NAMES:
+        out["num_name"] = _MT.NUM_NAMES[out["num"]]
     # 同时保留两教师一致性中间量，便于统计报告与二次筛选
     for k in ("_iou_two_teachers", "_kpt_diff_px", "_kpt_diff_pct", "_d_secondary_px"):
         if k in obj and obj[k] is not None:
@@ -135,11 +141,18 @@ def write_edited_labels(out_dir, key, img_w, img_h, objects, extra_meta=None, **
     return res
 
 
-def review_rows(out_dir):
-    """汇总全部 meta json -> 待复核清单行（供 CSV/面板使用）。"""
+def review_rows(out_dir, keys=None):
+    """汇总 meta json -> 待复核清单行（供 CSV/面板使用）。
+
+    keys=None 全量扫描（21k 张约 0.8 s）；给出 keys 时只读这些 meta，供增量更新使用。
+    """
     meta_dir = Path(out_dir) / "meta"
+    if keys is None:
+        paths = sorted(meta_dir.rglob("*.json"))
+    else:
+        paths = [p for p in (meta_dir / (str(k) + ".json") for k in keys) if p.exists()]
     rows = []
-    for p in sorted(meta_dir.rglob("*.json")):
+    for p in paths:
         meta = json.loads(p.read_text(encoding="utf-8"))
         for i, o in enumerate(meta["objects"]):
             if not o.get("review") or o.get("deprecated"):

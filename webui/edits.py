@@ -27,6 +27,9 @@ from webui import api
 KEEP_BACKUPS = 10
 KEEP_AUDIT = 20
 REVIEW_PREFIXES = labelio.REVIEW_FLAG_PREFIXES
+# 界面保存会重建 meta，这些由其它工具（废弃标记 / 目标级废弃 / 恢复）写入的字段需原样保留
+PRESERVE_META_KEYS = ("deprecated", "dep_by", "dep_time", "dep_reason",
+                      "object_deprecations", "restored_from", "restored_at")
 
 
 # --------------------------------------------------------------------------- #
@@ -81,32 +84,38 @@ def new_ts():
     return "%s-%03d" % (time.strftime("%Y%m%d-%H%M%S", time.localtime(t)), int(t * 1000) % 1000)
 
 
-def make_backup(out_dir: Path, key: str):
+def make_backup(out_dir: Path, key: str, kind: str = "manual"):
+    """备份 meta + labels；文件名带来源标记（manual/auto），保留最新 KEEP-1 份 + 最旧 1 份。"""
     d = backup_dir(out_dir, key)
     d.mkdir(parents=True, exist_ok=True)
     ts = new_ts()
+    bid = "%s_%s" % (ts, kind)                    # 备份标识（列表/恢复都用它）
     src_meta = Path(out_dir) / "meta" / (key + ".json")
     src_lab = Path(out_dir) / "labels" / (key + ".txt")
     if not src_meta.exists():
         raise api.ApiError("meta 不存在，无法备份: %s" % key, 404)
-    meta_dst = d / ("%s_meta.json" % ts)
+    meta_dst = d / ("%s_meta.json" % bid)
     n = 1
     while meta_dst.exists():                      # 极端情况下再退避避免覆盖
         n += 1
-        ts = "%s-%d" % (new_ts(), n)
-        meta_dst = d / ("%s_meta.json" % ts)
+        bid = "%s-%d_%s" % (new_ts(), n, kind)
+        meta_dst = d / ("%s_meta.json" % bid)
     shutil.copy2(src_meta, meta_dst)
     lab_dst = None
     if src_lab.exists():
-        lab_dst = d / ("%s_labels.txt" % ts)
+        lab_dst = d / ("%s_labels.txt" % bid)
         shutil.copy2(src_lab, lab_dst)
-    for old in sorted(d.glob("*_meta.json"))[:-KEEP_BACKUPS]:      # 只留最近 N 份
-        try:
-            old.unlink()
-            (d / old.name.replace("_meta.json", "_labels.txt")).unlink(missing_ok=True)
-        except OSError:
-            pass
-    return {"ts": ts, "dir": api.rel_to_root(d),
+    metas = sorted(d.glob("*_meta.json"))
+    if len(metas) > KEEP_BACKUPS:
+        # 保留最新 KEEP-1 份 + 最旧 1 份：自动保存会频繁产生快照，但要始终留得住
+        # 「本次编辑前」的原始状态（否则恢复只能回到几步之前）
+        for old in metas[1:-(KEEP_BACKUPS - 1)]:
+            try:
+                old.unlink()
+                (d / old.name.replace("_meta.json", "_labels.txt")).unlink(missing_ok=True)
+            except OSError:
+                pass
+    return {"ts": bid, "kind": kind, "dir": api.rel_to_root(d),
             "meta": api.rel_to_root(meta_dst),
             "labels": api.rel_to_root(lab_dst) if lab_dst else None}
 
@@ -119,7 +128,9 @@ def list_backups(out_dir: Path, key: str):
     res = []
     for m in metas:
         lab = d / m.name.replace("_meta.json", "_labels.txt")
-        res.append({"ts": m.name[:-len("_meta.json")], "meta": api.rel_to_root(m),
+        bid = m.name[:-len("_meta.json")]
+        res.append({"ts": bid, "kind": "auto" if bid.endswith("_auto") else "manual",
+                    "meta": api.rel_to_root(m),
                     "labels": api.rel_to_root(lab) if lab.exists() else None,
                     "mtime": round(m.stat().st_mtime, 3)})
     return res
@@ -142,8 +153,9 @@ def save(payload):
             continue
         actions[int(a["index"])] = a
     reviewer = str(payload.get("reviewer") or "webui")[:40]
+    auto = bool(payload.get("auto"))              # 自动保存（前端 debounce 触发）
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    bk = make_backup(out, key)
+    bk = make_backup(out, key, kind="auto" if auto else "manual")
 
     edits, kept = [], []
     if payload.get("background"):
@@ -191,11 +203,18 @@ def save(payload):
 
     internal = [to_internal(o, w, h) for o in kept]
     audit = list(meta.get("review_edits") or [])
-    audit.append({"reviewer": reviewer, "time": now,
+    audit.append({"reviewer": reviewer, "time": now, "auto": auto,
                   "n_edits": len(edits), "edits": edits[:12]})
+    # 回写是"重建 meta"，需显式带上其它模块写入的字段（废弃标记、恢复记录等），
+    # 否则一次界面保存就会把它们抹掉
+    extra = {"review_edits": audit[-KEEP_AUDIT:],
+             "n_dep_obj": sum(1 for o in kept if o.get("deprecated"))}
+    for k in PRESERVE_META_KEYS:
+        if k in meta:
+            extra[k] = meta[k]
     res = labelio.write_edited_labels(
         out, key, w, h, internal,
-        extra_meta={"review_edits": audit[-KEEP_AUDIT:]},
+        extra_meta=extra,
         image_name=meta.get("image"), image_path=meta.get("path"), rel=meta.get("rel"),
         teachers=meta.get("teachers") or [], run_config=meta.get("config") or {},
         mode=meta.get("class_mode") or C.CLASS_MODE)
@@ -203,7 +222,7 @@ def save(payload):
     _sync_after_write(out, key)
     new_meta = api.read_meta(out, key)
     return {"ok": True, "key": key, "n_obj": res["n_obj"], "n_review": res["n_review"],
-            "edits": edits, "backup": bk, "meta": new_meta,
+            "edits": edits, "backup": bk, "auto": auto, "meta": new_meta,
             "reviewed": [f == "reviewed" for o in new_meta["objects"] for f in (o.get("flags") or [])].count(True)}
 
 
@@ -246,7 +265,11 @@ def _sync_after_write(out: Path, key=None):
     """回写后同步复核清单，并只刷新该 key 的索引条目（避免整库重建）。"""
     try:
         from autolabel import run as run_mod
-        run_mod.write_review_list(out)
+        # 单 key 走增量（毫秒级）；全量重写要读 21k meta，交互式保存不能走那条路
+        if key:
+            run_mod.update_review_list(out, [key], log=lambda *a, **k: api.LOG.info(" ".join(str(x) for x in a)))
+        else:
+            run_mod.write_review_list(out, log=lambda *a, **k: api.LOG.info(" ".join(str(x) for x in a)))
     except Exception:
         api.LOG.warning("同步 review_list.csv 失败", exc_info=True)
     if key:

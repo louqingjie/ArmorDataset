@@ -285,6 +285,14 @@ def _panel_object(o):
             "review": o.get("review"), "flags": o.get("flags", [])}
 
 
+REVIEW_COLS = ["image", "obj", "source", "flags", "reason", "color", "num",
+               "score_p", "score_s", "plate_w", "iou2", "kpt_diff_pct", "d_refine_px"]
+
+
+def _review_line(r, cols=REVIEW_COLS):
+    return ",".join("" if r.get(c) is None else str(r.get(c)).replace(",", "|") for c in cols)
+
+
 def write_review_list(out_dir, log=print):
     rows = labelio.review_rows(out_dir)
     if not rows:
@@ -292,13 +300,32 @@ def write_review_list(out_dir, log=print):
         return None
     path = Path(out_dir) / "review" / "review_list.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    cols = ["image", "obj", "source", "flags", "reason", "color", "num",
-            "score_p", "score_s", "plate_w", "iou2", "kpt_diff_pct", "d_refine_px"]
-    lines = [",".join(cols)]
-    for r in rows:
-        lines.append(",".join("" if r.get(c) is None else str(r.get(c)).replace(",", "|") for c in cols))
+    lines = [",".join(REVIEW_COLS)] + [_review_line(r) for r in rows]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     log("[review] %d 个目标待人工复核 -> %s" % (len(rows), path))
+    return path
+
+
+def update_review_list(out_dir, keys, log=print):
+    """增量更新复核清单：只重算给定 key 的行，其余原样保留。
+
+    全量重写要读 21k 个 meta（约 0.8 s），交互式保存/自动保存每秒都可能触发，
+    因此这里按 key 局部刷新（毫秒级）。keys 为空则等价于不做任何事。
+    """
+    keys = [str(k) for k in keys if str(k)]
+    if not keys:
+        return None
+    path = Path(out_dir) / "review" / "review_list.csv"
+    keep = []
+    if path.exists():
+        for ln in path.read_text(encoding="utf-8").splitlines()[1:]:
+            if ln.strip() and ln.split(",", 1)[0] not in keys:
+                keep.append(ln)
+    rows = labelio.review_rows(out_dir, keys=keys)
+    lines = [",".join(REVIEW_COLS)] + keep + [_review_line(r) for r in rows]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    log("[review] 增量更新 %d 个 key（清单共 %d 行）" % (len(keys), len(lines) - 1))
     return path
 
 

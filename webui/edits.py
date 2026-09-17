@@ -209,6 +209,8 @@ def save(payload):
     # 否则一次界面保存就会把它们抹掉
     extra = {"review_edits": audit[-KEEP_AUDIT:],
              "n_dep_obj": sum(1 for o in kept if o.get("deprecated"))}
+    if any(a.get("clear_review") for a in actions.values()):
+        extra["reviewed_at"] = now       # 队列分区用：最近一次确认时间
     for k in PRESERVE_META_KEYS:
         if k in meta:
             extra[k] = meta[k]

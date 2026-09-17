@@ -8,7 +8,7 @@ const R = {
   key: null, meta: null, objs: [], reviewer: 'webui',
   sel: -1, selPt: -1, undo: [], dirty: false,
   autosave: true, saveTimer: null, saving: false, savePromise: null,
-  saveQueued: false, lastSave: null, saveFail: 0,
+  saveQueued: false, lastSave: null, saveFail: 0, queueAnchor: null,
   img: null, W: 0, H: 0, previewMax: 1600, imgLoading: false,
   showCoarse: true, showIdx: true,
   view: { scale: 1, ox: 0, oy: 0 },
@@ -23,6 +23,23 @@ export function setReviewOut(out) {
   R.out = out;
   R.offset = 0; R.items = []; R.key = null; R.meta = null; R.objs = [];
   if (R.inited) { loadList(true); }
+}
+
+/* 顶部"输出目录"下拉：把"待复核 / 无需复核"区分开（计数来自索引 facets，随每次列表加载刷新） */
+function updateOutOptionLabel(f) {
+  const sel = $('outSelect');
+  if (!sel || !f) return;
+  const opt = Array.from(sel.options).find((o) => o.value === R.out);
+  if (opt) {
+    opt.textContent = `${R.out} · 待复核 ${f.review} / 无需复核 ${f.no_review ?? 0}`;
+    opt.title = `共 ${f.all} 张 ｜ 待复核 ${f.review} ｜ 无需复核 ${f.no_review ?? 0}`
+      + ` ｜ 已确认 ${f.reviewed} ｜ 背景 ${f.background} ｜ 已废弃 ${f.deprecated}`;
+  }
+  const badge = $('outMetaBadge');
+  if (badge) {
+    badge.textContent = `共 ${f.all} · 已确认 ${f.reviewed ?? 0} · 背景 ${f.background ?? 0} · 已废弃 ${f.deprecated ?? 0}`;
+    badge.title = `待复核 ${f.review} 张 ｜ 无需复核 ${f.no_review ?? 0} 张（有目标且无待复核项、未废弃）`;
+  }
 }
 
 export async function refreshReviewBadge() {
@@ -90,18 +107,19 @@ function debounce(fn, ms) {
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 
-async function loadList(reset) {
+async function loadList(reset, limitOverride) {
   try {
     if (reset) { R.offset = 0; R.items = []; $('rvList').innerHTML = ''; }
     const r = await get('/api/images', {
       out: R.out, filter: R.filter, q: R.q, sort: R.sort,
       order: (R.sort === 'plate_w' || R.sort === 'score') ? 'desc' : 'asc',
-      offset: R.offset, limit: R.limit,
+      offset: R.offset, limit: limitOverride || R.limit,
     });
     R.total = r.total;
     R.items = R.items.concat(r.items);
     R.offset = R.items.length;
     $('rvCount').textContent = `${R.items.length}/${R.total}`;
+    updateOutOptionLabel(r.facets);
     renderList(r.items);
     if (reset && !R.key && R.items.length) selectKey(R.items[0].key);
     if (r.index && r.index.building) setTimeout(() => loadList(true), 2500);
@@ -117,19 +135,39 @@ function renderList(items) {
     row.className = `list-row p${it.priority <= 3 ? it.priority : 9}`;
     row.dataset.key = it.key;
     const badge = it.n_review ? `<span class="tag danger">${it.n_review}</span>`
-      : (it.reviewed ? '<span class="tag ok">已确认</span>' : (it.n_obj ? '<span class="tag info">OK</span>' : '<span class="tag muted">背景</span>'));
+      : (it.reviewed ? '<span class="tag ok">已确认</span>'
+        : (it.n_obj ? '<span class="tag info" title="无需人工复核：精修通过/双教师一致，未触发复核条件">无需复核</span>'
+          : '<span class="tag muted">背景</span>'));
     row.className = `list-row p${it.priority <= 3 ? it.priority : 9}` + (it.deprecated ? ' deprecated' : '');
     row.innerHTML = `<span class="bar"></span>
       <span><div class="key">${escapeHtml(it.key)}</div>
       <div class="sub">${it.n_obj} 目标 · 板宽 ${fmt.num(it.plate_w)}px · ${it.sources.join('/')}</div></span>
       <span>${it.deprecated ? '<span class="tag muted">废弃</span>' : ''}${it.dep_objs ? `<span class="tag muted" title="含 ${it.dep_objs} 个已废弃目标（不参与训练）">弃${it.dep_objs}</span>` : ''}${badge}</span>`;
-    row.onclick = () => selectKey(it.key);
+    row.onclick = () => { R.queueAnchor = null; selectKey(it.key); };
     box.appendChild(row);
   });
 }
 
 function markActive() {
   document.querySelectorAll('.list-row').forEach((r) => r.classList.toggle('active', r.dataset.key === R.key));
+}
+
+/* 重新拉取列表但保持滚动位置（废弃/确认后让队列分区立即生效）。
+   已加载的条目数会传给后端，避免把长列表缩回一页。
+   anchorKey：刷新前当前图的"下一张"，记下来供 → 继续从原位置往下走。 */
+async function refreshListKeepScroll(anchorKey) {
+  const el = $('rvList');
+  const top = el.scrollTop;
+  const loaded = Math.min(Math.max(R.items.length, 200), 1000);
+  await loadList(true, loaded);
+  el.scrollTop = top;
+  markActive();
+  if (anchorKey !== undefined) R.queueAnchor = anchorKey || null;
+}
+
+function nextKeyAfter(key) {
+  const i = R.items.findIndex((it) => it.key === key);
+  return i >= 0 && i + 1 < R.items.length ? R.items[i + 1].key : null;
 }
 
 /* ------------------------------------------------------------------ 选中与加载 */
@@ -212,9 +250,11 @@ function draw() {
     drawQuad(ctx, o.quad_coarse_px, {
       stroke: 'rgba(120,130,145,.85)', dash: [5, 4], width: i === R.sel ? 1.6 : 1, show: R.showCoarse,
     });
-    const color = o.source === 'refine' ? (COLOR_BGR[o.color] || '#16A34A') : '#F59E0B';
+    const dep = !!o.deprecated;
+    const color = dep ? '#6B7280'
+      : (o.source === 'refine' ? (COLOR_BGR[o.color] || '#16A34A') : '#F59E0B');
     drawQuad(ctx, o.quad_final_px, {
-      stroke: color, width: i === R.sel ? 3 : 2,
+      stroke: color, width: i === R.sel ? 3 : 2, dash: dep ? [8, 5] : null,
       glow: i === R.sel ? 'rgba(37,99,235,.55)' : null,
     });
     R.objs[i]._screen = (o.quad_final_px || []).map(toScreen);
@@ -222,11 +262,12 @@ function draw() {
 
   R.objs.forEach((o, i) => {
     if (o.__deleted || !o._screen) return;
+    const dep = !!o.deprecated;
     o._screen.forEach((p, k) => {
       const isSel = i === R.sel && k === R.selPt;
       ctx.beginPath();
       ctx.arc(p[0], p[1], isSel ? 8 : 5.5, 0, Math.PI * 2);
-      ctx.fillStyle = isSel ? '#2563EB' : '#EF4444';
+      ctx.fillStyle = dep ? '#9CA3AF' : (isSel ? '#2563EB' : '#EF4444');
       ctx.fill();
       ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
       if (R.showIdx) {
@@ -247,7 +288,38 @@ function draw() {
       ctx.fillStyle = '#F8FAFC';
       ctx.fillText(txt, p0[0] + 4, p0[1] - 16);
     }
+    if (dep) {                                     // 废弃目标：框上方加醒目徽标
+      const anchor = o._screen[0] || o._screen[1];
+      drawBadge(ctx, anchor[0] - 2, anchor[1] - 56,
+        o.dep_reason && o.dep_reason.length <= 10 ? `废弃·${o.dep_reason}` : '废弃');
+    }
   });
+
+  if (R.deprecated) {                              // 整图废弃：画布左上角通栏提示
+    drawBadge(ctx, 10, 10, '本图已废弃 · 不参与训练导出',
+      { font: 'bold 14px sans-serif', pad: 18, h: 26 });
+  }
+}
+
+/* 红底白字圆角徽标（自带白描边，保证在任何底图上都醒目） */
+function drawBadge(ctx, x, y, text, opt = {}) {
+  const wrap = $('rvCanvasWrap');
+  const pad = opt.pad ?? 16, h = opt.h ?? 20;
+  ctx.save();
+  ctx.font = opt.font || 'bold 13px sans-serif';
+  const tw = ctx.measureText(text).width + pad;
+  const bx = Math.min(Math.max(2, x), Math.max(2, wrap.clientWidth - tw - 2));
+  const by = Math.min(Math.max(2, y), Math.max(2, wrap.clientHeight - h - 2));
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, tw, h, 5); else ctx.rect(bx, by, tw, h);
+  ctx.fillStyle = opt.bg || 'rgba(220,38,38,.94)';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = opt.border || 'rgba(255,255,255,.92)';
+  ctx.stroke();
+  ctx.fillStyle = opt.fg || '#FFFFFF';
+  ctx.fillText(text, bx + pad / 2, by + h - 6);
+  ctx.restore();
 }
 
 function drawQuad(ctx, quad, opt) {
@@ -600,6 +672,7 @@ function saveNow(auto) {
   }
   R.saving = true;
   updateAutoStatus('saving');
+  const nRevBefore = (R.meta && R.meta.n_review) || 0;
   R.savePromise = (async () => {
     try {
       const r = await post('/api/save', body);
@@ -615,6 +688,11 @@ function saveNow(auto) {
       }
       if (!auto) toast('已保存并备份 → ' + (r.backup?.dir || ''), 'ok', 3200);
       if (!R.drag) { renderObjects(); draw(); updateDirty(); renderMetaInfo(); }
+      // 本图刚被确认完（还有待复核 → 0）：立即按队列分区重排（自己进顶部"最近确认"或归档），
+      // 并记住原来的下一张，→ 仍从原位置继续
+      if (!R.drag && nRevBefore > 0 && (r.meta.n_review || 0) === 0) {
+        await refreshListKeepScroll(nextKeyAfter(R.key));
+      }
       refreshReviewBadge();
       const row = document.querySelector(`.list-row[data-key="${cssEscape(R.key)}"]`);
       if (row) {
@@ -656,6 +734,11 @@ async function restore() {
 /* ------------------------------------------------------------------ 导航与快捷键 */
 function step(d) {
   if (!R.items.length) return;
+  if (d > 0 && R.queueAnchor) {          // 刚确认完的那张已被移走，→ 回到它原来的下一张
+    const a = R.queueAnchor;
+    R.queueAnchor = null;
+    if (R.items.some((it) => it.key === a)) { selectKey(a); return; }
+  }
   let i = R.items.findIndex((it) => it.key === R.key);
   if (i < 0) i = 0;
   const next = R.items[(i + d + R.items.length) % R.items.length];
@@ -694,7 +777,7 @@ function onKey(e) {
 
 /* 批量接受：当前列表中仍待复核的前 N 张 */
 export async function batchAccept(n = 20) {
-  const targets = R.items.filter((it) => it.n_review > 0).slice(0, n);
+  const targets = R.items.filter((it) => it.n_review > 0 && !it.deprecated).slice(0, n);
   if (!targets.length) { toast('列表中已无待复核图片', 'warn'); return; }
   let done = 0, failed = 0;
   for (const it of targets) {
@@ -746,8 +829,10 @@ async function toggleDeprecate() {
     updateDepButton();
     markRowDeprecated(R.key, next);
     $('rvTitle').textContent = R.key + (next ? '（已废弃）' : '');
-    toast(next ? '已标记废弃：不参与训练导出' : '已取消废弃', next ? 'warn' : 'ok');
+    toast(next ? '已标记废弃：不参与训练导出，并移至队列末尾' : '已取消废弃：回到原排序位置',
+      next ? 'warn' : 'ok');
     refreshReviewBadge();
+    await refreshListKeepScroll();          // 让"废弃图排到队尾"立刻生效
   } catch (e) {
     toast('操作失败：' + e.message, 'error', 5000);
   }
@@ -763,8 +848,9 @@ async function batchDeprecate(n = 20) {
       reviewer: R.reviewer, bulk: true,
     });
     targets.forEach((t) => { t.deprecated = true; markRowDeprecated(t.key, true); });
-    toast(`已废弃 ${r.n} 张（库内累计 ${r.total} 张）`, 'warn', 3400);
+    toast(`已废弃 ${r.n} 张（库内累计 ${r.total} 张），已移至队列末尾`, 'warn', 3400);
     refreshReviewBadge();
+    await refreshListKeepScroll();
   } catch (e) {
     toast('批量废弃失败：' + e.message, 'error', 5000);
   }

@@ -93,7 +93,16 @@ function renderTopbar(st) {
   $('sideTeachers').textContent = (st.defaults.teachers || []).map((t) => t.split('/').pop()).join(' + ');
   $('sideRoot').textContent = st.root;
   $('serverInfo').textContent = `:${st.port} v${st.version}`;
-  $('outMetaBadge').textContent = st.n_meta !== undefined ? `${st.n_meta} 张已标注` : '无输出';
+  const f = st.facets;
+  const badge = $('outMetaBadge');
+  if (f) {
+    // 与上面"输出目录"下拉配合：下拉里显示"待复核/无需复核"，这里显示其余口径
+    badge.textContent = `共 ${f.all} · 已确认 ${f.reviewed ?? 0} · 背景 ${f.background ?? 0} · 已废弃 ${f.deprecated ?? 0}`;
+    badge.title = `待复核 ${f.review} 张 ｜ 无需复核 ${f.no_review ?? 0} 张（有目标且无待复核项、未废弃）`;
+  } else {
+    badge.textContent = st.n_meta !== undefined ? `${st.n_meta} 张已标注` : '无输出';
+    badge.title = '';
+  }
   const d = st.defaults;
   $('brandSub').textContent = `双教师伪标签 · 1.5× ROI 传统视觉精修 · kpt_shape=[4,2] · ${d.teachers.length} 教师`;
 }

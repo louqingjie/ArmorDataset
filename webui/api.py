@@ -34,6 +34,7 @@ ALLOWED_ROOTS = [ROOT]
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 INDEX_SYNC_LIMIT = 4000          # meta 文件数不超过该值时同步建索引，否则后台建
 PRIORITY = {"conflict": 0, "no_match": 1, "refine_failed": 2, "tiny": 3, "refine_skipped": 5}
+RECENT_CONFIRMED = 5       # 队列顶部只保留"最近确认"的 N 张，其余已确认沉到队列末尾（废弃之前）
 FILTERS = ("all", "review", "agree", "conflict", "no_match", "refine_failed", "tiny",
            "refine_skipped", "background", "reviewed", "edited",
            "num_LB", "num_B")     # 编号=大基地装甲板 / 编号=基地（按图内是否含该类目标筛选）
@@ -208,6 +209,7 @@ def _entry_from_meta(meta: dict, mtime: float, dep_info=None):
         "plate_w": round(plate_w, 2), "score": round(score, 4),
         "size": meta.get("size") or [0, 0], "priority": prio,
         "reviewed": any(f == "reviewed" for f in flags),
+        "reviewed_at": _reviewed_at(meta),        # 最近一次确认时间（队列分区用）
         "edited": bool(meta.get("review_edit")),
         "colors": dict(colors), "nums": dict(nums), "review_kinds": dict(review_kinds),
         "pairs": dict(pairs),                      # 颜色×编号 组合（用于导出时交错均衡排序）
@@ -222,6 +224,31 @@ def _entry_from_meta(meta: dict, mtime: float, dep_info=None):
         "dep_time": (dep_info or {}).get("time"),
         "dep_reason": (dep_info or {}).get("reason"),
     }
+
+
+def _reviewed_at(meta):
+    """最近一次"确认"时间：优先 meta.reviewed_at，其次最后一条人工编辑审计的时间。"""
+    t = meta.get("reviewed_at")
+    if t:
+        return t
+    ed = meta.get("review_edits") or []
+    return (ed[-1] or {}).get("time") if ed else None
+
+
+def _is_done(e):
+    """已处理完（没有待复核项）：已确认 reviewed 或 背景图（无目标）。"""
+    return (e.get("n_review") or 0) == 0 and (e.get("reviewed") or not e.get("n_obj"))
+
+
+def _needs_review(e):
+    """需要人工复核（未被废弃且还有待复核目标）。"""
+    return bool(e.get("n_review")) and not e.get("deprecated")
+
+
+def _no_review(e):
+    """不需要人工复核：有目标、无待复核项、未废弃（含精修通过/双教师一致/已人工确认）。"""
+    return ((e.get("n_review") or 0) == 0 and (e.get("n_obj") or 0) > 0
+            and not e.get("deprecated"))
 
 
 def _hist(values, edges):
@@ -252,6 +279,7 @@ class OutIndex:
         self.progress = (0, 0)
         self.error = None
         self._lock = threading.Lock()
+        self._facets_cache = None          # (时间戳, facets)，避免状态轮询里重复全表统计
 
     # ---- 签名与构建 ----
     def signature(self):
@@ -339,6 +367,19 @@ class OutIndex:
             return (e["priority"], -e["plate_w"], e["key"])      # priority 默认
 
         items.sort(key=sort_key, reverse=(order == "desc"))
+        # 队列分区（稳定排序，组内保持上面的排序结果，两种 order 都成立）：
+        #   ① 最近确认的 N 张（最新的在最上面，方便回看/撤销）
+        #   ② 待处理（按 priority 等原排序）
+        #   ③ 其余已处理完（已确认 reviewed / 背景图）——"甩到队列最后"
+        #   ④ 已废弃（永远最后，"废弃之前"即归档段之上）
+        recent = self.recent_keys(RECENT_CONFIRMED)
+        head, rest = [], []
+        for e in items:
+            (head if e["key"] in recent else rest).append(e)
+        if head:
+            head.sort(key=lambda e: e.get("reviewed_at") or "", reverse=True)
+        rest.sort(key=lambda e: 2 if e.get("deprecated") else (1 if _is_done(e) else 0))
+        items = head + rest
         total = len(items)
         return {
             "total": total,
@@ -347,6 +388,22 @@ class OutIndex:
             "items": items[int(offset):int(offset) + int(limit)],
             "facets": self.facets(),
         }
+
+    def recent_keys(self, n=RECENT_CONFIRMED):
+        """最近确认的 N 个 key（按确认时间倒序），用于把队列顶部限制成一小段"最近操作"。"""
+        done = [e for e in self.entries.values()
+                if e.get("reviewed_at") and not e.get("deprecated") and _is_done(e)]
+        done.sort(key=lambda e: e["reviewed_at"], reverse=True)
+        return {e["key"] for e in done[:max(0, int(n))]}
+
+    def facets_cached(self, ttl=5.0):
+        """带短 TTL 的 facets（顶部栏每 2s 轮询 /api/state，不值得每次都全表统计）。"""
+        now = time.time()
+        if self._facets_cache and now - self._facets_cache[0] < ttl:
+            return self._facets_cache[1]
+        f = self.facets()
+        self._facets_cache = (now, f)
+        return f
 
     def facets(self):
         cnt = Counter()
@@ -368,10 +425,13 @@ class OutIndex:
         cnt["obj_deprecated"] = sum(1 for e in self.entries.values() if (e.get("dep_objs") or 0) > 0)
         cnt["all_deprecated"] = sum(1 for e in self.entries.values()
                                     if e["n_obj"] > 0 and (e.get("n_usable") or 0) == 0)
+        # 需要复核 / 不需要复核（互斥口径）：后者＝有目标、无待复核项、未废弃
+        cnt["need_review"] = sum(1 for e in self.entries.values() if _needs_review(e))
+        cnt["no_review"] = sum(1 for e in self.entries.values() if _no_review(e))
         out = {k: int(cnt.get(k, 0)) for k in
                ("all", "review", "reviewed", "edited", "background", "agree", "conflict",
                 "no_match", "refine_failed", "refine_skipped", "tiny", "deprecated", "active",
-                "obj_deprecated", "all_deprecated")}
+                "obj_deprecated", "all_deprecated", "need_review", "no_review")}
         for nm in ("B", "LB"):            # 编号维度：含该类目标的图片数
             out["num_" + nm] = sum(1 for e in self.entries.values()
                                    if (e.get("nums") or {}).get(nm, 0) > 0)
@@ -395,6 +455,10 @@ def _match_filter(e, flt):
         return (e.get("dep_objs") or 0) > 0
     if flt == "all_deprecated":
         return e["n_obj"] > 0 and (e.get("n_usable") or 0) == 0
+    if flt == "no_review":
+        return _no_review(e)
+    if flt == "need_review":
+        return _needs_review(e)
     if flt.startswith("num_"):
         return (e.get("nums") or {}).get(flt[4:], 0) > 0      # 按编号名筛选（如 num_LB / num_B）
     return flt in e["flags"]
@@ -441,6 +505,7 @@ def refresh_index_entry(out_dir: Path, key: str, mtime=None):
         p = out_dir / "meta" / (str(key) + ".json")
         mt = p.stat().st_mtime if p.exists() else time.time()
         idx.entries[key] = _entry_from_meta(meta, mt, dep_mod.load(out_dir).get(key))
+        idx._facets_cache = None
     except Exception as exc:
         LOG.warning("刷新索引条目失败 %s/%s: %s", rel_to_root(out_dir), key, exc)
         return False
@@ -655,6 +720,8 @@ def api_state(ctx):
         idx = _INDEXES.get(str(cur.resolve()))
         info["index"] = {"building": bool(idx and idx.building),
                          "n": len(idx.entries) if idx else 0}
+        if idx and idx.entries:
+            info["facets"] = idx.facets_cached()      # 供顶部栏显示"待复核/无需复核"
     return info
 
 

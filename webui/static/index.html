@@ -141,6 +141,9 @@
           <h3>任务控制</h3>
           <span class="muted">子进程 <code>python -m autolabel.run</code>，同一输出目录同时只允许一个任务</span>
         </div>
+        <div class="card-body" id="jobLocalHint" hidden>
+          <span class="muted">公网访问模式：任务启动/停止仅限本机操作（GPU 任务已受保护），数据核对功能不受影响。</span>
+        </div>
         <div class="card-body row wrap gap">
           <button class="btn btn-primary" id="btnStart">开始标注</button>
           <button class="btn btn-primary-soft" id="btnResume">续跑（跳过已完成）</button>
@@ -190,6 +193,7 @@
             <select id="rvFilter" class="input input-sm mt-xs">
               <option value="review">待复核</option>
               <option value="no_review">无需复核（自动通过/已确认）</option>
+              <option value="holdout">验证集来源（holdout）</option>
               <option value="all">全部</option>
               <option value="conflict">冲突 conflict</option>
               <option value="no_match">单侧检出 no_match</option>

@@ -184,12 +184,14 @@ def process_one(teachers, item, cfg, log=None):
                                          extra_thresholds=cfg["refine_extra_thresholds"])
     t_refine = time.time()
 
+    group = C.source_group_of_path(Path(cfg["images_root"]) / rel)
     rec = labelio.write_image_labels(cfg["out"], key, w, h, objects, image_name=p.name,
-                                     image_path=str(p), rel=rel, teachers=cfg["teacher_labels"],
+                                     image_path=str(p), rel=rel, source_group=group,
+                                     teachers=cfg["teacher_labels"],
                                      run_config=cfg["meta_config"], mode=cfg["class_mode"])
     ms = (time.time() - t0) * 1000.0
     return {
-        "image": key, "rel": rel, "status": "ok", "ms": round(ms, 1),
+        "image": key, "rel": rel, "group": group, "status": "ok", "ms": round(ms, 1),
         "ms_read": round((t_read - t0) * 1000, 1),
         "ms_infer": round((t_infer - t_read) * 1000, 1),
         "ms_refine": round((t_refine - t_infer) * 1000, 1),

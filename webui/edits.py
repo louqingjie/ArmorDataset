@@ -29,7 +29,8 @@ KEEP_AUDIT = 20
 REVIEW_PREFIXES = labelio.REVIEW_FLAG_PREFIXES
 # 界面保存会重建 meta，这些由其它工具（废弃标记 / 目标级废弃 / 恢复）写入的字段需原样保留
 PRESERVE_META_KEYS = ("deprecated", "dep_by", "dep_time", "dep_reason",
-                      "object_deprecations", "restored_from", "restored_at")
+                      "object_deprecations", "restored_from", "restored_at",
+                      "source_group")        # 来源分组（训练/验证隔离）不能在界面保存时丢失
 
 
 # --------------------------------------------------------------------------- #

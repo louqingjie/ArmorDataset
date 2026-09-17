@@ -88,8 +88,8 @@ def _atomic_write(path: Path, text: str):
 
 
 def write_image_labels(out_dir, key, img_w, img_h, objects, image_name=None,
-                       image_path=None, rel=None, teachers=(), run_config=None,
-                       mode=C.CLASS_MODE):
+                       image_path=None, rel=None, source_group=None, teachers=(),
+                       run_config=None, mode=C.CLASS_MODE):
     """写出 labels/<key>.txt 与 meta/<key>.json（key 为相对路径，可含子目录）。
 
     key 用"相对输入目录的路径去扩展名"保证唯一（SUM/13.jpg 与 SUM/val/13.png 不再互相覆盖），
@@ -109,6 +109,8 @@ def write_image_labels(out_dir, key, img_w, img_h, objects, image_name=None,
 
     meta = {
         "key": key, "image": name, "rel": rel or key, "path": image_path,
+        # 来源分组：这张图来自哪一批采集（训练/验证隔离用，见 config.HOLDOUT_GROUPS）
+        "source_group": source_group,
         "size": [int(img_h), int(img_w)],
         "teachers": list(teachers), "config": dict(run_config or {}),
         "class_mode": mode, "kpt_order": list(C.KPT_ORDER),

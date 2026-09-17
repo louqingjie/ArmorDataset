@@ -210,6 +210,9 @@ def _entry_from_meta(meta: dict, mtime: float, dep_info=None):
         "size": meta.get("size") or [0, 0], "priority": prio,
         "reviewed": any(f == "reviewed" for f in flags),
         "reviewed_at": _reviewed_at(meta),        # 最近一次确认时间（队列分区用）
+        # 来源分组（raw pic 批次）：holdout=True 表示来自验证集来源，导出时不得进 train
+        "group": meta.get("source_group"),
+        "holdout": C.is_holdout(meta.get("source_group")),
         "edited": bool(meta.get("review_edit")),
         "colors": dict(colors), "nums": dict(nums), "review_kinds": dict(review_kinds),
         "pairs": dict(pairs),                      # 颜色×编号 组合（用于导出时交错均衡排序）
@@ -428,10 +431,11 @@ class OutIndex:
         # 需要复核 / 不需要复核（互斥口径）：后者＝有目标、无待复核项、未废弃
         cnt["need_review"] = sum(1 for e in self.entries.values() if _needs_review(e))
         cnt["no_review"] = sum(1 for e in self.entries.values() if _no_review(e))
+        cnt["holdout"] = sum(1 for e in self.entries.values() if e.get("holdout"))
         out = {k: int(cnt.get(k, 0)) for k in
                ("all", "review", "reviewed", "edited", "background", "agree", "conflict",
                 "no_match", "refine_failed", "refine_skipped", "tiny", "deprecated", "active",
-                "obj_deprecated", "all_deprecated", "need_review", "no_review")}
+                "obj_deprecated", "all_deprecated", "need_review", "no_review", "holdout")}
         for nm in ("B", "LB"):            # 编号维度：含该类目标的图片数
             out["num_" + nm] = sum(1 for e in self.entries.values()
                                    if (e.get("nums") or {}).get(nm, 0) > 0)
@@ -459,6 +463,8 @@ def _match_filter(e, flt):
         return _no_review(e)
     if flt == "need_review":
         return _needs_review(e)
+    if flt == "holdout":                       # 仅验证集来源（防"机器预习"的那批图）
+        return bool(e.get("holdout"))
     if flt.startswith("num_"):
         return (e.get("nums") or {}).get(flt[4:], 0) > 0      # 按编号名筛选（如 num_LB / num_B）
     return flt in e["flags"]
@@ -712,6 +718,7 @@ def api_state(ctx):
     info = {"ok": True, "version": _version(), "root": str(ROOT), "port": ctx.server_port,
             "outs": outs, "images_dirs": images, "defaults": out_defaults(),
             "current_out": rel_to_root(cur), "out_exists": cur.exists(),
+            "local": bool(getattr(ctx, "local", True)),
             "job": jobs.status(), "preview": dict(_PREVIEW_STATS)}
     if cur.exists() and (cur / "meta").is_dir():
         info.update(out_summary(cur))

@@ -142,7 +142,7 @@ function renderList(items) {
     row.innerHTML = `<span class="bar"></span>
       <span><div class="key">${escapeHtml(it.key)}</div>
       <div class="sub">${it.n_obj} 目标 · 板宽 ${fmt.num(it.plate_w)}px · ${it.sources.join('/')}</div></span>
-      <span>${it.deprecated ? '<span class="tag muted">废弃</span>' : ''}${it.dep_objs ? `<span class="tag muted" title="含 ${it.dep_objs} 个已废弃目标（不参与训练）">弃${it.dep_objs}</span>` : ''}${badge}</span>`;
+      <span>${it.holdout ? '<span class="tag info" title="来自验证集来源（跨比赛/相机），训练时只做 val，不进 train">holdout</span>' : ''}${it.deprecated ? '<span class="tag muted">废弃</span>' : ''}${it.dep_objs ? `<span class="tag muted" title="含 ${it.dep_objs} 个已废弃目标（不参与训练）">弃${it.dep_objs}</span>` : ''}${badge}</span>`;
     row.onclick = () => { R.queueAnchor = null; selectKey(it.key); };
     box.appendChild(row);
   });

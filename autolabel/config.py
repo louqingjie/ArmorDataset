@@ -44,6 +44,45 @@ ROI_EXPAND = 1.5           # 以四点外接框为中心放大倍数（复用 ma
 # make_reference.sp_refine 内部同款 8px，实测 11 张 BaseLine 全部精修成功。
 ROI_MIN_SIDE = 8
 
+# ---------------------------------------------------------------- 来源分组（防"机器预习"）
+# 每张图的 meta json 里记录 source_group：它来自哪一批采集/比赛，避免训练集与验证集同源。
+# 由路径推导（标注时写入，之后不再随目录结构变化）：
+#   RawPic/SUM/0001.jpg      -> "SUM"
+#   RawPic/SUM/val/x.jpg     -> "SUM_val"      ← 用户自留的跨比赛/跨相机 holdout
+#   BaseLine/B2.png          -> "BaseLine"     ← 冒烟/回归用
+IMAGE_ROOT_NAMES = ("RawPic", "BaseLine")
+HOLDOUT_GROUPS = ("SUM_val",)      # 视为验证集来源的分组：导出时强制隔离、绝不进 train
+
+
+def source_group_of_path(path):
+    """从路径推导来源分组：数据批次[_子批次]。
+
+    兼容相对路径与绝对路径（meta 里的 path 是绝对路径），锚定最后一个 RawPic/BaseLine：
+      RawPic/SUM/0001.jpg                  -> SUM
+      RawPic/SUM/val/outpost592.jpg         -> SUM_val     ← holdout
+      /home/xxx/ArmorDataset/BaseLine/B2.png-> BaseLine
+    """
+    parts = [p for p in str(path).replace("\\", "/").split("/") if p]
+    if len(parts) > 1 and "." in parts[-1]:
+        parts = parts[:-1]                                  # 去掉文件名
+    idx = None
+    for i, seg in enumerate(parts):
+        if seg in IMAGE_ROOT_NAMES:
+            idx = i                                         # 取最后一个（绝对路径前缀里可能有同名目录）
+    if idx is not None:
+        root, parts = parts[idx], parts[idx + 1:]
+        if not parts:
+            return root                                     # BaseLine/xxx.png -> BaseLine
+    if not parts:
+        return "unknown"
+    return "_".join(parts[:2]) if len(parts) >= 2 else parts[0]
+
+
+def is_holdout(group):
+    """该来源分组是否属于验证集来源（可配置扩展，如以后加 "RM2026_zone2"）。"""
+    return str(group) in set(HOLDOUT_GROUPS)
+
+
 # ---------------------------------------------------------------- 精修后校验
 REFINE_IOU_GUARD = 0.30    # 精修四点 vs 粗框 IoU 下限（防止跳到错误灯条）
 REFINE_SIZE_LO = 0.5       # 精修板宽 / 粗框板宽 允许区间

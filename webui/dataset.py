@@ -31,6 +31,7 @@ from autolabel import labelio
 from webui import api, edits
 
 FILTERS = ("all", "high", "exclude_review", "reviewed")
+SPLIT_MODES = ("ratio", "group")     # ratio=按比例抽样；group=按来源分组隔离（防"机器预习"）
 OBJ_FILTERS = ("keep_all", "drop_review")
 IMAGE_MODES = ("copy", "symlink", "none")
 ORDER_MODES = ("balanced", "random", "key")
@@ -197,13 +198,20 @@ def _balance_brief(cls_img):
 
 def describe_order(out_dir, res, preview=12):
     """把预检结果打印成可读文本（含前 N 张的类别，用于核对交错顺序）。"""
+    mode = res.get("split_mode") or "ratio"
+    if mode == "group":
+        split_line = ("划分方式: 按来源分组隔离（holdout=%s，不抽样）｜ train/val = %d / %d"
+                      % ("/".join(res.get("holdout_groups") or []), res["n_train"], res["n_val"]))
+    else:
+        split_line = "划分方式: 按比例抽样（val_ratio）｜ train/val = %d / %d" % (res["n_train"], res["n_val"])
     lines = ["排序方式: %s  |  交错周期: %s …" % (res["order"], " → ".join(res.get("cycle") or [])),
              "命中图片 %d 张 / 目标 %d 个（覆盖 %d 类）" %
              (res["n_images"], res["n_objects"], res.get("n_classes_hit", 0)),
              "已废弃被排除: %d 张%s" % (res.get("n_deprecated_excluded", 0),
                                   "（未排除）" if res.get("include_deprecated") else ""),
              "类别分布: %s" % json.dumps(res.get("class_dist") or {}, ensure_ascii=False),
-             "train/val 预计: %d / %d" % (res["n_train"], res["n_val"]),
+             split_line,
+             "来源分组构成: %s" % json.dumps(res.get("groups") or {}, ensure_ascii=False),
              "前 %d 张导出顺序:" % preview]
     for k in (res.get("order_preview") or [])[:preview]:
         try:
@@ -214,6 +222,83 @@ def describe_order(out_dir, res, preview=12):
             pairs = ["?"]
         lines.append("   %-18s %s" % (k, ", ".join(pairs)))
     return "\n".join(lines)
+
+
+def split_keys(kept, opts):
+    """计算 train/val 划分，返回 (val_keys, info)。
+
+    * group：**按来源分组隔离** —— holdout 分组的图一律进 val，其余进 train，不抽样。
+      训练集与验证集不同比赛/不同相机，避免"机器预习"（同源 val 分数虚高）。
+    * ratio：按 val_ratio 抽样（balanced 序上等距 / random 洗牌），同源划分，仅作备选。
+    """
+    mode = str(opts.get("split_mode") or "ratio").lower()
+    if mode not in SPLIT_MODES:
+        raise api.ApiError("未知划分方式: %s" % mode)
+    val_ratio = max(0.0, min(0.9, float(opts.get("val_ratio", 0.1) or 0.0)))
+    order = opts.get("order", "balanced")
+    if mode == "group":
+        val_keys = {e["key"] for e in kept if C.is_holdout(e.get("group"))}
+        return val_keys, {"split_mode": "group", "holdout_groups": list(C.HOLDOUT_GROUPS)}
+    if order == "balanced" and val_ratio > 0:
+        # 在交错序列上等距抽 val（而不是随机抽样）：train/val 两侧的类别分布同样均衡
+        step = max(2, int(round(1.0 / val_ratio)))
+        val_keys = {e["key"] for i, e in enumerate(kept) if i % step == 0}
+    else:
+        rng = random.Random(int(opts.get("seed") or 0))
+        shuffled = list(kept)
+        rng.shuffle(shuffled)
+        n_val = int(round(len(shuffled) * val_ratio))
+        val_keys = {e["key"] for e in shuffled[:n_val]}
+    return val_keys, {"split_mode": "ratio", "val_ratio": val_ratio}
+
+
+def group_summary(kept, val_keys):
+    """按来源分组统计 train/val 张数，用于核对隔离是否生效。"""
+    groups = {}
+    for e in kept:
+        g = e.get("group") or "?"
+        d = groups.setdefault(g, {"train": 0, "val": 0})
+        d["val" if e["key"] in val_keys else "train"] += 1
+    return dict(sorted(groups.items()))
+
+
+def _check_no_leak(kept, val_keys):
+    """holdout 来源的图绝不能进 train（按分组划分时应恒为空，作为硬约束保留）。"""
+    leak = [e["key"] for e in kept if C.is_holdout(e.get("group")) and e["key"] not in val_keys]
+    if leak:
+        raise api.ApiError("holdout 来源泄漏进训练集：%d 张，例如 %s"
+                           % (len(leak), ", ".join(leak[:5])))
+
+
+def sync_groups(out_dir: Path, log=print):
+    """按 meta 里的 path/rel 回填/校正 source_group（一次性维护；之后标注会自动写入）。"""
+    from collections import Counter
+    cnt = Counter()
+    n_set = n_keep = n_bad = 0
+    for p in sorted((out_dir / "meta").rglob("*.json")):
+        try:
+            meta = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            n_bad += 1
+            continue
+        src = meta.get("path") or ("%s/%s" % (api.rel_to_root(C.DEFAULT_IMAGES),
+                                             meta.get("rel") or meta.get("key") or ""))
+        g = C.source_group_of_path(src)
+        cnt[g] += 1
+        if meta.get("source_group") != g:
+            meta["source_group"] = g
+            labelio._atomic_write(p, json.dumps(meta, ensure_ascii=False, indent=1))
+            n_set += 1
+        else:
+            n_keep += 1
+    log("[groups] 共 %d 张：写入/修正 %d，已一致 %d，读取失败 %d"
+        % (sum(cnt.values()), n_set, n_keep, n_bad))
+    for g, n in cnt.most_common():
+        log("   %-14s %6d 张%s" % (g, n, "   <- holdout（验证集来源）" if C.is_holdout(g) else ""))
+    if n_set and api._INDEXES.get(str(Path(out_dir).resolve())):
+        api.invalidate_index(out_dir)             # 索引条目里的 group 需要重建
+        log("[groups] 已使索引失效，下次请求会重建")
+    return {"updated": n_set, "kept": n_keep, "failed": n_bad, "groups": dict(cnt)}
 
 
 def preflight(payload):
@@ -257,8 +342,13 @@ def preflight(payload):
         except api.ApiError:
             pass
 
-    val_ratio = float(opts.get("val_ratio", 0.1) or 0.0)
-    n_val = int(round(len(kept) * max(0.0, min(0.9, val_ratio))))
+    val_keys, split_info = split_keys(kept, opts)
+    if split_info.get("split_mode") == "group":
+        if not val_keys:
+            raise api.ApiError("没有找到 holdout 来源分组的图片：先跑 "
+                               "python -m webui.dataset --sync-groups 回填 source_group")
+        _check_no_leak(kept, val_keys)
+    n_val = len(val_keys)
     class_names = _class_names(mode)
     return {"ok": True, "out": api.rel_to_root(out), "dest": payload.get("dest"),
             "filter": opts.get("filter", "all"), "object_filter": obj_filter,
@@ -274,6 +364,9 @@ def preflight(payload):
             "n_dropped_review_objects": n_review_obj,
             "n_deprecated_objects_excluded": n_dep_obj,
             "n_images_without_usable_obj": n_bg,
+            "split_mode": split_info.get("split_mode"),
+            "holdout_groups": split_info.get("holdout_groups") or list(C.HOLDOUT_GROUPS),
+            "groups": group_summary(kept, val_keys),
             "n_train": len(kept) - n_val, "n_val": n_val,
             "class_dist": {class_names.get(int(k), k): v for k, v in
                            sorted(cls_cnt.items(), key=lambda t: -t[1])},
@@ -304,18 +397,13 @@ def _export_task(report, out_dir: Path, dest: Path, opts):
     image_mode = opts.get("image_mode", "copy")
     if image_mode not in IMAGE_MODES:
         raise api.ApiError("未知图片方式: %s" % image_mode)
-    val_ratio = max(0.0, min(0.9, float(opts.get("val_ratio", 0.1) or 0.0)))
     order = opts.get("order", "balanced")
-    if order == "balanced" and val_ratio > 0:
-        # 在交错序列上等距抽 val（而不是随机抽样）：train/val 两侧的类别分布同样均衡
-        step = max(2, int(round(1.0 / val_ratio)))
-        val_keys = {e["key"] for i, e in enumerate(kept) if i % step == 0}
-    else:
-        rng = random.Random(int(opts.get("seed") or 0))
-        shuffled = list(kept)
-        rng.shuffle(shuffled)
-        n_val = int(round(len(shuffled) * val_ratio))
-        val_keys = {e["key"] for e in shuffled[:n_val]}
+    val_keys, split_info = split_keys(kept, opts)
+    if split_info.get("split_mode") == "group":
+        if not val_keys:
+            raise api.ApiError("没有找到 holdout 来源分组的图片：先跑 "
+                               "python -m webui.dataset --sync-groups 回填 source_group")
+        _check_no_leak(kept, val_keys)           # 硬约束：holdout 不许进 train
 
     for sub in ("images/train", "images/val", "labels/train", "labels/val"):
         (dest / sub).mkdir(parents=True, exist_ok=True)
@@ -364,6 +452,9 @@ def _export_task(report, out_dir: Path, dest: Path, opts):
     summary = {"ok": True, "dest": api.rel_to_root(dest), "class_mode": mode,
                "filter": opts.get("filter", "all"), "object_filter": obj_filter,
                "order": order, "cycle": cycle_pairs()[:12],
+               "split_mode": split_info.get("split_mode"),
+               "holdout_groups": split_info.get("holdout_groups") or list(C.HOLDOUT_GROUPS),
+               "groups": group_summary(kept, val_keys),
                "n_deprecated_excluded": sel_info.get("n_deprecated_excluded", 0),
                "n_deprecated_objects_excluded": n_dep_obj,
                "image_mode": image_mode, "counts": counts,
@@ -390,6 +481,9 @@ def main(argv=None):
     ap.add_argument("--order", default="balanced", choices=list(ORDER_MODES),
                     help="balanced=按 R1→B1→R2… 交错均衡；random=随机；key=按文件名")
     ap.add_argument("--val-ratio", type=float, default=0.1)
+    ap.add_argument("--split-mode", default="ratio", choices=list(SPLIT_MODES),
+                    help="ratio=按比例抽样（同源）；group=按来源分组隔离"
+                         "（holdout 分组进 val、其余进 train，防'机器预习'）")
     ap.add_argument("--class-mode", default=C.CLASS_MODE, choices=("single", "merged"))
     ap.add_argument("--image-mode", default="symlink", choices=list(IMAGE_MODES))
     ap.add_argument("--limit", type=int, default=0, help="0=不限（均衡模式下取前 N 张）")
@@ -401,7 +495,13 @@ def main(argv=None):
     ap.add_argument("--run", action="store_true", help="真正执行导出（默认只预检）")
     ap.add_argument("--sync-deprecated", action="store_true",
                     help="把 out/deprecated.json 的废弃标记重新镜像进 meta 后退出")
+    ap.add_argument("--sync-groups", action="store_true",
+                    help="按 meta 的 path/rel 回填 source_group（来源分组）后退出")
     args = ap.parse_args(argv)
+
+    if args.sync_groups:
+        sync_groups(api.safe_path(args.out))
+        return 0
 
     if args.sync_deprecated:
         from webui import deprecate as dep_mod
@@ -410,6 +510,7 @@ def main(argv=None):
 
     payload = {"out": args.out, "dest": args.dest, "filter": args.filter,
                "object_filter": args.object_filter, "order": args.order,
+               "split_mode": args.split_mode,
                "val_ratio": args.val_ratio, "class_mode": args.class_mode,
                "image_mode": args.image_mode, "limit": args.limit, "seed": args.seed,
                "include_background": args.include_background,

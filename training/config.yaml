@@ -1,0 +1,85 @@
+# ============================================================================
+# 装甲板学生模型训练配置
+#   * 数据来自 AutoLabel/（YOLO-pose 13 字段标签 + meta 里的颜色/编号）
+#   * 姿态学生：YOLO26n-pose 主线，YOLOv8n-pose 对照（kpt_shape 都是 [4,2]）
+#   * 颜色/编号走裁块小 CNN（也可换 ultralytics 分类模型），与姿态模型解耦
+#   * 所有路径相对仓库根目录；改完直接 ./run_training.sh
+# ============================================================================
+
+data:
+  source_out: AutoLabel        # 标注目录（含 meta/ labels/）
+  workdir: TrainSet/armor26     # 产物根目录：dataset/ models/ runs/ cls/ eval/
+  filter: exclude_review        # all | high(双教师一致) | exclude_review(无需复核，推荐首轮) | reviewed
+  object_filter: keep_all       # keep_all | drop_review（丢掉待复核目标）
+  order: balanced               # balanced(R1→B1→G1→N1→R2… 交错均衡) | random | key
+  # 划分方式：group = 按"来源分组"隔离（RawPic/SUM/val 自留的跨比赛/相机 holdout 一律进 val，
+  # 其余进 train，不抽样）—— 避免训练集与验证集同源造成"机器预习"。
+  # ratio = 按 val_ratio 抽样（同源划分，仅作对照/兜底）。
+  split_mode: group
+  val_ratio: 0.10               # 仅 split_mode: ratio 时生效
+  image_mode: symlink           # symlink | copy | none
+  include_background: true      # 6828 张无目标图参与训练，抑制误检
+  class_mode: single            # single: 0=armor；merged: color*9+num（36 类）
+  limit: 0                      # >0 时只取均衡子集前 N 张（冒烟调试用）
+  seed: 0
+
+pose:
+  student: yolo26n-pose         # yolo26n-pose | yolo26s-pose | yolo11n-pose | yolov8n-pose
+  weights: yolo26n-pose.pt      # COCO 预训练；置空则从结构随机初始化（不推荐）
+  # 输入尺寸：[高, 宽]（ultralytics 顺序，注意与"640x512"这种宽×高的写法相反）
+  # 512x640 = 与副教师 shtech/SZU0526_fp32 完全一致的输入形状；实测本库 100% 图片
+  # 都是宽度受限（w/h ≥ 0.8），所以相比 640x640 目标像素大小不变、精度零损失，
+  # 而像素量少 20%（327k vs 409k）。要求：高宽都必须是 32 的倍数（512/640 满足）。
+  # 想换回正方输入就写 imgsz: 640；想更省算力可试 [384, 640]（-40%，2:1 图会多垫边）。
+  imgsz: [512, 640]
+  kpt_shape: [4, 2]
+  flip_idx: [3, 2, 1, 0]        # 水平翻转：左上↔右上、左下↔右下
+  epochs: 150
+  batch: 24                     # 3080Ti 12G：640 输入、AMP 下 24 稳妥
+  amp: true
+  cache: ram
+  optimizer: auto
+  lr0: 0.01
+  lrf: 0.01
+  cos_lr: true
+  warmup_epochs: 3.0
+  patience: 40
+  workers: 8
+  seed: 0
+  close_mosaic: 10
+  # --- 增强：装甲板基本无面内旋转，重点放在尺度/光度 ---
+  degrees: 0.0
+  translate: 0.10
+  scale: 0.50
+  perspective: 0.0005
+  fliplr: 0.5
+  flipud: 0.0
+  hsv_h: 0.015
+  hsv_s: 0.70
+  hsv_v: 0.40
+  mosaic: 1.0
+  mixup: 0.0
+  device: 0                     # 0=第一块 GPU；cpu / 0,1 亦可
+
+cls:
+  enabled: true
+  arch: tiny                    # tiny（自研小 CNN，ONNX 友好）| yolo（ultralytics 分类模型）
+  size: 64                      # 裁块边长（正方形，直接 resize）
+  pad: 1.25                     # 相对四点外接框的外扩倍数
+  min_plate_w: 16               # 板宽小于该值的目标不参与分类头训练（颜色不可辨）
+  epochs: 60
+  batch: 256
+  lr: 0.003
+  weight_decay: 0.0005
+  width: 32                     # tiny 网络的基准通道数
+  patience: 15
+  workers: 4
+  class_weight: true            # 类别不均衡加权（G 灰白仅占 5.4%，N 几乎空置）
+
+eval:
+  auto: true                    # train_pose 结束后自动评估
+  baseline_dir: BaseLine        # 与 Test/reference_kpt.json 对照的 11 张基准图
+  reference: Test/reference_kpt.json
+  conf: 0.25
+  iou: 0.60
+  val_limit: 300                # 从导出 val 集里抽多少张做角点误差统计（0=全量）
